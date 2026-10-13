@@ -1,0 +1,99 @@
+{
+  "nome": "Intersecta Lab Design System",
+  "versao": "1.0.0",
+  "referencia": "Landing page clara e arejada dentro de uma moldura em degradê, tipografia grotesca grande, botões em pílula e cartões flutuantes conectados por linhas finas.",
+  "conceito": {
+    "ideia_central": "Interseção: a ciência (violeta) encontra o mercado (coral). O degradê da moldura é a própria marca: as duas cores só se misturam no meio.",
+    "metafora_visual": "Tabuleiro de xadrez como mapa de risco. As seis peças do Scientific Chess Method aparecem como cartões flutuantes ligados a um cartão central de diagnóstico.",
+    "tom": "Rigor de laboratório com clareza de produto. Confiante, direto, sem jargão de startup.",
+    "elemento_memoravel": "O hero com o cartão escuro de diagnóstico cercado pelas peças. Todo o resto é calmo e disciplinado."
+  },
+  "principios": [
+    "Uma única ousadia por tela: o degradê aparece na moldura, no título principal e no botão primário. Em nenhum outro lugar.",
+    "Espaço em branco é estrutura. Prefira separar por espaço a separar por linhas.",
+    "Cartões só onde há um objeto real (um projeto, uma peça, um diagnóstico). Texto corrido não vira cartão.",
+    "Hierarquia por tamanho e peso, não por cor. Cor de severidade só para risco.",
+    "Movimento apenas como resposta a uma ação ou para mostrar progresso (carregando, analisando)."
+  ],
+  "cores": {
+    "moldura_degrade": "linear-gradient(120deg, #6B3FE0 0%, #B455C8 48%, #F2875A 100%)",
+    "texto_degrade": "linear-gradient(100deg, #6B3FE0 0%, #B455C8 55%, #F2875A 100%)",
+    "canvas": "#FFF5F2",
+    "superficie": "#FFFFFF",
+    "superficie_suave": "#FBF0EE",
+    "tinta": "#1A1726",
+    "tinta_suave": "#6A6478",
+    "linha": "#EEDFDC",
+    "acento": "#6B3FE0",
+    "cartao_escuro": "#16131F",
+    "severidade": { "critico": "#D2414B", "alto": "#E08A2E", "medio": "#8C9B3A", "solido": "#2F9A6A" },
+    "modo_escuro": { "canvas": "#15121D", "superficie": "#1E1A29", "superficie_suave": "#241F31", "tinta": "#F3EEF6", "tinta_suave": "#A79FB5", "linha": "#2F2941" },
+    "regras": [
+      "Fundo da página é o degradê; o conteúdo vive num canvas claro com cantos bem arredondados.",
+      "Texto principal sempre em tinta sobre canvas ou superfície; nunca texto sobre o degradê, exceto no botão primário.",
+      "Cores de severidade nunca são decorativas: indicam risco de uma peça ou critério."
+    ]
+  },
+  "tipografia": {
+    "familia": "Geist, com fallback Inter, Segoe UI, system-ui, sans-serif",
+    "escala": {
+      "display": { "tamanho": "clamp(2.6rem, 6vw, 4.6rem)", "peso": 600, "altura_linha": 1.0, "tracking": "-0.035em" },
+      "h1": { "tamanho": "clamp(2rem, 4vw, 2.8rem)", "peso": 600, "altura_linha": 1.08, "tracking": "-0.03em" },
+      "h2": { "tamanho": "1.6rem", "peso": 600, "altura_linha": 1.15, "tracking": "-0.02em" },
+      "h3": { "tamanho": "1.05rem", "peso": 600, "altura_linha": 1.3 },
+      "corpo": { "tamanho": "1rem", "peso": 400, "altura_linha": 1.6 },
+      "pequeno": { "tamanho": "0.85rem", "peso": 400, "altura_linha": 1.5 },
+      "numero_score": { "tamanho": "5rem", "peso": 600, "tracking": "-0.05em", "numerais": "tabulares" }
+    },
+    "regras": [
+      "Títulos grandes, com tracking negativo e quebra de linha intencional.",
+      "O degradê no texto aparece só nas primeiras palavras do título do hero.",
+      "Frases em caixa normal (sentence case). Sem rótulos em caixa alta.",
+      "Linhas de texto com no máximo 70 caracteres."
+    ]
+  },
+  "espacamento": {
+    "base": "4px",
+    "escala": [4, 8, 12, 16, 24, 32, 48, 72, 112],
+    "moldura": "margem de 28px ao redor do canvas no desktop, 8px no celular",
+    "secoes": "72px a 112px entre seções no desktop, 48px no celular",
+    "conteudo_max": "1180px",
+    "grade": "hero em 2 colunas (texto 5/12, composição visual 7/12); demais seções em 1 coluna ou 2 colunas iguais"
+  },
+  "forma": {
+    "raio": { "canvas": "36px", "cartao": "22px", "tile": "18px", "input": "14px", "pilula": "999px" },
+    "sombra": {
+      "flutuante": "0 28px 60px -28px rgba(74,40,120,.30), 0 2px 6px rgba(74,40,120,.06)",
+      "repouso": "0 1px 2px rgba(26,23,38,.06)"
+    },
+    "borda": "1px solid linha; cartões ativos ganham anel de 1px no acento"
+  },
+  "componentes": {
+    "navegacao": "Logo à esquerda (marca quadrada escura com dois círculos sobrepostos), alternância Pesquisador / Núcleo de inovação ao centro como texto com indicador em pílula, ação de conectar IA à direita como botão em pílula com contorno.",
+    "botao_primario": "Pílula com fundo em degradê, texto branco peso 500, ícone de seta em círculo à esquerda, anel externo de 4px na cor do canvas com borda fina. Hover: leve aumento de brilho.",
+    "botao_secundario": "Pílula com fundo superfície, borda linha, texto tinta. Hover: borda tinta_suave.",
+    "lista_de_garantias": "Itens pequenos abaixo dos botões do hero, cada um com um ponto circular de 4px, separados por espaço.",
+    "cartao_diagnostico_escuro": "Cartão vertical escuro com título do projeto, barras verticais das seis peças (lembrando uma forma de onda), linha de score e status 'Analisando' com ícone de brilho em degradê.",
+    "cartao_citacao": "Cartão branco sobreposto ao escuro, com selo da peça e severidade em pílula pequena e uma frase de evidência.",
+    "tile_de_peca": "Quadrado arredondado com símbolo da peça grande, nome e score; fundo superficie_suave; conectado ao cartão central por linha curva fina em degradê com nó de brilho.",
+    "faixa_de_pecas": "Faixa branca abaixo do hero com as seis peças lado a lado, como uma faixa de logos.",
+    "seletor_de_modo": "Dois cartões lado a lado (Tenho o documento / Prefiro conversar). Selecionado: anel de 1px no acento e fundo superfície.",
+    "campo_de_texto": "Fundo superfície, borda linha, raio input, foco com anel de 3px do acento a 25%.",
+    "chat": "Mensagens da IA em superficie_suave alinhadas à esquerda; do usuário em tinta com texto branco à direita; avisos do sistema centralizados em tinta_suave.",
+    "tabuleiro": "Grade 3x2 (2x3 no celular) com casas alternando superfície e superficie_suave; cada casa com símbolo, nome, score e barra fina; a peça em xeque-mate ganha anel crítico.",
+    "selo_de_severidade": "Pílula pequena preenchida com a cor de severidade e texto branco.",
+    "tabela_portfolio": "Tabela sem bordas verticais, cabeçalho em tinta_suave, células de score com fundo da severidade a 20%.",
+    "painel_de_andamento": "Cartão com spinner, cronômetro, etapas numeradas (é uma sequência real) e o modelo em uso."
+  },
+  "movimento": {
+    "duracao": "160ms para hover, 600ms para barras de score preenchendo",
+    "curva": "cubic-bezier(.2,.8,.2,1)",
+    "regras": ["Respeitar prefers-reduced-motion", "Sem animações de entrada em cada seção", "Spinner só enquanto há processamento real"]
+  },
+  "acessibilidade": [
+    "Contraste mínimo AA em todo texto",
+    "Foco visível com anel no acento",
+    "Elementos decorativos do hero com aria-hidden",
+    "Severidade nunca comunicada só por cor: sempre com o nome (Crítico, Alto, Médio)"
+  ]
+}

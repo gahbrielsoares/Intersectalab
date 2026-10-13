@@ -40,5 +40,6 @@ A pasta `apps/web-estatico/` é publicada no GitHub Pages pela branch `gh-pages`
 - [ADR 0001 — Score determinístico](docs/adr/0001-score-deterministico.md)
 - [LGPD](docs/lgpd.md)
 - [Perguntas em aberto](docs/perguntas-em-aberto.md)
+- [Design system (design.json)](docs/design/design.json)
 
 Projeto apoiado pelo Programa Centelha. Rio Claro · SP.
