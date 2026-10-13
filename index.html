@@ -457,11 +457,11 @@ ${rubricaTexto()}
 
 MATERIAL DO PROJETO:
 """
-${material.slice(0,90000)}
+${material.slice(0,40000)}
 """
 
-Responda somente com um array JSON contendo exatamente um objeto por critério (${CRIT_IDS.length} objetos), no formato:
-[{"criterio_id":"rei.existe_independente","nivel":2,"justificativa":"uma frase","trechos_fonte":["trecho curto copiado do material"]}]`;
+Responda somente com um array JSON contendo exatamente um objeto por critério (${CRIT_IDS.length} objetos). Seja breve: justificativa com no máximo 20 palavras e no máximo 1 trecho de até 15 palavras (lista vazia se não houver). Formato:
+[{"criterio_id":"rei.existe_independente","nivel":2,"justificativa":"frase curta","trechos_fonte":["trecho curto do material"]}]`;
 }
 
 function promptRedacao(material,d){
@@ -476,7 +476,7 @@ Material do projeto (para contexto):
 ${material.slice(0,40000)}
 """
 
-Seja específica sobre o que está faltando, fraco ou indefinido em cada peça; não suavize lacunas.
+Seja específica sobre o que está faltando, fraco ou indefinido em cada peça; não suavize lacunas. Cada campo com no máximo 25 palavras.
 Responda somente com JSON neste formato:
 {"leitura_geral":"2 frases sobre a posição do projeto",
  "frase_xeque_mate":"uma frase: a vulnerabilidade com maior chance de derrubar tudo",
@@ -492,23 +492,27 @@ function juntarTurnos(t){const out=[];for(const m of t){const l=out[out.length-1
 const esperar=ms=>new Promise(r=>setTimeout(r,ms));
 function relogio(ms){const ctrl=new AbortController();let t=setTimeout(()=>ctrl.abort(),ms);
   return {signal:ctrl.signal,renovar(){clearTimeout(t);t=setTimeout(()=>ctrl.abort(),ms)},parar(){clearTimeout(t)}}}
-const TEMPO_ESGOTADO={code:"overloaded",message:"A IA demorou demais para responder."};
+const TEMPO_ESGOTADO={code:"timeout",message:"A IA demorou demais para responder."};
 let chatEspera=null;
 function avisar(t){ if(chatEspera){ chatEspera.aviso=t; chatEspera.desenhar(); return } if(statusBox){ statusTexto=t; desenharStatus(); return } try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
 async function chamarIA(messages,opts={}){
   if(!IA.key){abrirChave();throw {code:"no_key"}}
   const chamar=()=>IA.provider==="gemini"?chamarGemini(messages,opts):chamarAnthropic(messages,opts);
-  const pausas=[3000,8000];
+  const motivo={overloaded:"está com o servidor ocupado",rate_limited:"atingiu o limite de pedidos por minuto",timeout:"demorou demais para responder",quota:"esgotou a cota gratuita do dia"};
   for(let rodada=0;;rodada++){
     let ultimo;
-    for(let t=0;t<=pausas.length;t++){
+    // Ocupado: tenta de novo 2 vezes. Limite por minuto: espera mais. Tempo esgotado ou cota do dia: troca de modelo na hora.
+    const pausas={overloaded:[3000,8000],rate_limited:[20000,40000]};
+    for(let t=0;;t++){
       try{ return await chamar() }
-      catch(e){ ultimo=e; if(e?.code!=="overloaded"&&e?.code!=="rate_limited") throw e;
-        if(t<pausas.length){ avisar(`${IA.model} ocupado, tentando de novo em ${pausas[t]/1000}s…`); await esperar(pausas[t]); } }
+      catch(e){ ultimo=e; if(!motivo[e?.code]) throw e;
+        const p=(pausas[e.code]||[])[t];
+        if(p===undefined) break;
+        avisar(`${IA.model} ${motivo[e.code]}. Tentando de novo em ${p/1000}s…`); await esperar(p); }
     }
     const prox=IA.provider==="gemini"?(IA.alternativos||[]).shift():null;
-    if(!prox||rodada>=3) throw ultimo;
-    avisar(`${IA.model} continua sobrecarregado. Trocando para ${prox}.`);
+    if(!prox||rodada>=4) throw ultimo;
+    avisar(`${IA.model} ${motivo[ultimo.code]}. Trocando para ${prox}.`);
     IA.model=prox; try{ $("#modelIn").value=prox }catch{}
   }
 }
@@ -519,15 +523,24 @@ async function lerSSE(r,aoDado,aoPedaco=()=>{}){
     while((i=buf.indexOf("\n\n"))>=0){const ev=buf.slice(0,i);buf=buf.slice(i+2);
       for(const ln of ev.split("\n")){if(!ln.startsWith("data:"))continue;let d;try{d=JSON.parse(ln.slice(5))}catch{continue}aoDado(d)}}}
 }
+// Raciocínio mínimo: extrair evidências não exige "pensar" longamente, e no plano gratuito isso deixa tudo lento.
+const semPensamento=new Set();
+function configPensamento(m){
+  if(semPensamento.has(m)) return {};
+  if(/gemini-2\.5/.test(m)) return /pro/.test(m)?{thinkingConfig:{thinkingBudget:128}}:{thinkingConfig:{thinkingBudget:0}};
+  if(/gemini-(3|latest)|flash-latest|pro-latest/.test(m)) return {thinkingConfig:{thinkingLevel:"low"}};
+  return {};
+}
 async function chamarGemini(messages,{onText,maxTokens=8192,json=false}={}){
   const corpo={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),
-    generationConfig:{maxOutputTokens:maxTokens,...(json?{responseMimeType:"application/json"}:{})}};
+    generationConfig:{maxOutputTokens:maxTokens,...(json?{responseMimeType:"application/json"}:{}),...configPensamento(IA.model)}};
   const base=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(IA.model)}`;
   let r; const rel=relogio(onText?60000:150000);
   try{ try{ r=await fetch(onText?`${base}:streamGenerateContent?alt=sse`:`${base}:generateContent`,{method:"POST",signal:rel.signal,headers:{"content-type":"application/json","x-goog-api-key":IA.key},body:JSON.stringify(corpo)}) }
   catch(e){ throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"} }
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{}
-    throw {code:r.status===400&&/api key/i.test(m)||r.status===403?"bad_key":r.status===429?"rate_limited":r.status===404?"bad_model":(r.status>=500||/high demand|overloaded|unavailable/i.test(m))?"overloaded":"upstream_error",message:m}}
+    if(r.status===400&&/thinking/i.test(m)&&!semPensamento.has(IA.model)){ semPensamento.add(IA.model); rel.parar(); return chamarGemini(messages,{onText,maxTokens,json}); }
+    throw {code:r.status===400&&/api key/i.test(m)||r.status===403?"bad_key":r.status===429?(/quota|exhausted|per day|perday/i.test(m)?"quota":"rate_limited"):r.status===404?"bad_model":(r.status>=500||/high demand|overloaded|unavailable/i.test(m))?"overloaded":"upstream_error",message:m}}
   const pegar=d=>(d.candidates?.[0]?.content?.parts||[]).filter(x=>!x.thought).map(x=>x.text||"").join("");
   if(!onText){ try{ return pegar(await r.json()) }catch(e){ throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"} } }
   let text=""; await lerSSE(r,d=>{if(d.error)throw {code:/high demand|overloaded|unavailable/i.test(d.error.message||"")?"overloaded":"upstream_error",message:d.error.message};const t=pegar(d);if(t){text+=t;onText({text})}},rel.renovar); return text;
@@ -592,7 +605,7 @@ function atualizarKeyBtn(){ $("#keyBtn").textContent=IA.key?"IA conectada":"Cone
 const $=s=>document.querySelector(s);
 const el=(t,a={},...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a)){if(x==="class")e.className=y;else if(x==="text")e.textContent=y;else e.setAttribute(x,y)}k.forEach(z=>e.append(z));return e};
 const erroTexto = e => erroBase(e)+(e?.message?` Detalhe: ${String(e.message).slice(0,200)}`:"");
-const erroBase = e => ({overloaded:"O modelo de IA está sobrecarregado agora. Tente de novo em instantes.",rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
+const erroBase = e => ({timeout:"A IA demorou demais para responder, mesmo trocando de modelo. Tente de novo em alguns minutos.",quota:"A cota gratuita do dia desta chave acabou. Use outra chave ou tente amanhã.",overloaded:"O modelo de IA está sobrecarregado agora. Tente de novo em instantes.",rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
 
 $("#keyBtn").onclick=()=>abrirChave();
 $("#keyClose").onclick=()=>dlg().close();
@@ -718,7 +731,7 @@ function desenharStatus(){ if(!statusBox) return; const s=Math.floor((Date.now()
   statusBox.replaceChildren(el("div",{class:"status-card",role:"status"},
     el("div",{class:"status-head"},el("span",{class:"spin","aria-hidden":"true"}),el("span",{text:`Gerando diagnóstico · ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`})),
     el("div",{class:"progress"},...l.map((p,i)=>el("div",{class:i<a?"done":i===a?"now":"",text:(i<a?"✓ ":i===a?"→ ":"· ")+`Etapa ${i+1} de ${l.length}: ${p}`}))),
-    el("div",{class:"note",text:`Modelo: ${IA.model}. Cada etapa costuma levar de 20 segundos a 2 minutos no plano gratuito.`}),
+    el("div",{class:"note",text:`Modelo: ${IA.model}. Cada etapa costuma levar de 10 a 60 segundos no plano gratuito.`}),
     ...(statusTexto?[el("div",{class:"note",text:statusTexto})]:[]))); }
 async function extrair(material){
   const arr=await sample.json(promptExtracao(material),{cache:false});
