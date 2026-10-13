@@ -90,6 +90,11 @@ details.evid{margin-top:8px;font-size:.88rem;color:var(--muted)}
 details.evid li{margin:4px 0}
 .progress{display:flex;flex-direction:column;gap:4px;margin:16px 0;font-size:.92rem}
 .progress .done{color:var(--muted)} .progress .now{font-weight:600}
+.status-card{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:14px 16px;margin:16px 0}
+.status-head{display:flex;align-items:center;gap:10px;font-weight:600}
+.spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;flex:none}
+@media (prefers-reduced-motion:no-preference){.spin{animation:gira .9s linear infinite}}
+@keyframes gira{to{transform:rotate(360deg)}}
 
 /* NIT */
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
@@ -303,7 +308,10 @@ const IA={provider:"gemini",key:null,model:MODELO_PADRAO.gemini};
 try{IA.provider=sessionStorage.getItem("ix_prov")||IA.provider;IA.key=sessionStorage.getItem("ix_key");IA.model=sessionStorage.getItem("ix_model")||MODELO_PADRAO[IA.provider]}catch{}
 function juntarTurnos(t){const out=[];for(const m of t){const l=out[out.length-1];if(l&&l.role===m.role)l.content+="\n\n"+m.content;else out.push({role:m.role,content:m.content})}return out}
 const esperar=ms=>new Promise(r=>setTimeout(r,ms));
-function avisar(t){ try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
+function relogio(ms){const ctrl=new AbortController();let t=setTimeout(()=>ctrl.abort(),ms);
+  return {signal:ctrl.signal,renovar(){clearTimeout(t);t=setTimeout(()=>ctrl.abort(),ms)},parar(){clearTimeout(t)}}}
+const TEMPO_ESGOTADO={code:"overloaded",message:"A IA demorou demais para responder."};
+function avisar(t){ if(statusBox){ statusTexto=t; desenharStatus(); return } try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
 async function chamarIA(messages,opts={}){
   if(!IA.key){abrirChave();throw {code:"no_key"}}
   const chamar=()=>IA.provider==="gemini"?chamarGemini(messages,opts):chamarAnthropic(messages,opts);
@@ -321,9 +329,10 @@ async function chamarIA(messages,opts={}){
     IA.model=prox; try{ $("#modelIn").value=prox }catch{}
   }
 }
-async function lerSSE(r,aoDado){
+async function lerSSE(r,aoDado,aoPedaco=()=>{}){
   const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
-  for(;;){const {value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true}).replace(/\r\n/g,"\n");let i;
+  for(;;){let lido;try{lido=await rd.read()}catch(e){throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"}}
+    const {value,done}=lido;if(done)break;aoPedaco();buf+=dec.decode(value,{stream:true}).replace(/\r\n/g,"\n");let i;
     while((i=buf.indexOf("\n\n"))>=0){const ev=buf.slice(0,i);buf=buf.slice(i+2);
       for(const ln of ev.split("\n")){if(!ln.startsWith("data:"))continue;let d;try{d=JSON.parse(ln.slice(5))}catch{continue}aoDado(d)}}}
 }
@@ -331,26 +340,28 @@ async function chamarGemini(messages,{onText,maxTokens=8192,json=false}={}){
   const corpo={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),
     generationConfig:{maxOutputTokens:maxTokens,...(json?{responseMimeType:"application/json"}:{})}};
   const base=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(IA.model)}`;
-  let r;
-  try{ r=await fetch(onText?`${base}:streamGenerateContent?alt=sse`:`${base}:generateContent`,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":IA.key},body:JSON.stringify(corpo)}) }
-  catch{ throw {code:"network"} }
+  let r; const rel=relogio(onText?60000:150000);
+  try{ try{ r=await fetch(onText?`${base}:streamGenerateContent?alt=sse`:`${base}:generateContent`,{method:"POST",signal:rel.signal,headers:{"content-type":"application/json","x-goog-api-key":IA.key},body:JSON.stringify(corpo)}) }
+  catch(e){ throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"} }
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{}
     throw {code:r.status===400&&/api key/i.test(m)||r.status===403?"bad_key":r.status===429?"rate_limited":r.status===404?"bad_model":(r.status>=500||/high demand|overloaded|unavailable/i.test(m))?"overloaded":"upstream_error",message:m}}
   const pegar=d=>(d.candidates?.[0]?.content?.parts||[]).filter(x=>!x.thought).map(x=>x.text||"").join("");
-  if(!onText) return pegar(await r.json());
-  let text=""; await lerSSE(r,d=>{if(d.error)throw {code:/high demand|overloaded|unavailable/i.test(d.error.message||"")?"overloaded":"upstream_error",message:d.error.message};const t=pegar(d);if(t){text+=t;onText({text})}}); return text;
+  if(!onText){ try{ return pegar(await r.json()) }catch(e){ throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"} } }
+  let text=""; await lerSSE(r,d=>{if(d.error)throw {code:/high demand|overloaded|unavailable/i.test(d.error.message||"")?"overloaded":"upstream_error",message:d.error.message};const t=pegar(d);if(t){text+=t;onText({text})}},rel.renovar); return text;
+  } finally { rel.parar() }
 }
 async function chamarAnthropic(messages,{onText,maxTokens=8000}={}){
-  let r;
-  try{ r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":IA.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:IA.model,max_tokens:maxTokens,messages,stream:!!onText})}) }
-  catch{ throw {code:"network"} }
+  let r; const rel=relogio(onText?60000:150000);
+  try{ try{ r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:rel.signal,headers:{"content-type":"application/json","x-api-key":IA.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:IA.model,max_tokens:maxTokens,messages,stream:!!onText})}) }
+  catch(e){ throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"} }
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{}
     throw {code:(r.status===529||r.status>=500)?"overloaded":r.status===401?"bad_key":r.status===429?"rate_limited":(r.status===404||/model/i.test(m))?"bad_model":r.status===400&&/credit|billing/i.test(m)?"no_credit":"upstream_error",message:m}}
-  if(!onText){const j=await r.json();return (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")}
+  if(!onText){let j;try{j=await r.json()}catch(e){throw e?.name==="AbortError"?TEMPO_ESGOTADO:{code:"network"}}return (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")}
   let text=""; await lerSSE(r,d=>{
     if(d.type==="content_block_delta"&&d.delta?.type==="text_delta"){text+=d.delta.text;onText({text})}
-    if(d.type==="error")throw {code:d.error?.type==="overloaded_error"?"overloaded":"upstream_error",message:d.error?.message}});
+    if(d.type==="error")throw {code:d.error?.type==="overloaded_error"?"overloaded":"upstream_error",message:d.error?.message}},rel.renovar);
   return text;
+  } finally { rel.parar() }
 }
 function lerJson(t){const s=t.replace(/```json|```/g,"").trim();try{return JSON.parse(s)}catch{}
   const a=Math.min(...["[","{"].map(c=>{const i=s.indexOf(c);return i<0?1e9:i})),b=Math.max(s.lastIndexOf("]"),s.lastIndexOf("}"));
@@ -468,12 +479,21 @@ function materialPesquisador(){ return turns.map(t=>(t.role==="user"?"PESQUISADO
 
 $("#genDiag").onclick=async()=>{
   ocupado=true; atualizarBotao();
-  try{ const r=await pipeline(materialPesquisador(),$("#diagPesq")); if(r) $("#diagPesq").scrollIntoView({behavior:"smooth"}); }
+  try{ setTimeout(()=>$("#diagPesq").scrollIntoView({behavior:"smooth",block:"start"}),50);
+    await pipeline(materialPesquisador(),$("#diagPesq")); }
   finally{ ocupado=false; atualizarBotao(); }
 };
 
 /* ================= PIPELINE: extrair → calcular → redigir ================= */
-function passos(box,lista,atual){box.replaceChildren(el("div",{class:"progress"},...lista.map((p,i)=>el("div",{class:i<atual?"done":i===atual?"now":"",text:(i<atual?"✓ ":i===atual?"… ":"  ")+p}))))}
+let statusTimer=null,statusInicio=0,statusBox=null,statusTexto="";
+function passos(box,lista,atual){ if(!statusTimer){statusInicio=Date.now();statusTimer=setInterval(desenharStatus,1000)} statusBox=box; box._lista=lista; box._atual=atual; statusTexto=""; desenharStatus(); }
+function pararStatus(){ clearInterval(statusTimer); statusTimer=null; statusBox=null; statusTexto=""; }
+function desenharStatus(){ if(!statusBox) return; const s=Math.floor((Date.now()-statusInicio)/1000), l=statusBox._lista, a=statusBox._atual;
+  statusBox.replaceChildren(el("div",{class:"status-card",role:"status"},
+    el("div",{class:"status-head"},el("span",{class:"spin","aria-hidden":"true"}),el("span",{text:`Gerando diagnóstico · ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`})),
+    el("div",{class:"progress"},...l.map((p,i)=>el("div",{class:i<a?"done":i===a?"now":"",text:(i<a?"✓ ":i===a?"→ ":"· ")+`Etapa ${i+1} de ${l.length}: ${p}`}))),
+    el("div",{class:"note",text:`Modelo: ${IA.model}. Cada etapa costuma levar de 20 segundos a 2 minutos no plano gratuito.`}),
+    ...(statusTexto?[el("div",{class:"note",text:statusTexto})]:[]))); }
 async function extrair(material){
   const arr=await sample.json(promptExtracao(material),{cache:false});
   if(!Array.isArray(arr)) throw {code:"invalid_json"};
@@ -487,8 +507,8 @@ async function pipeline(material,box,{titulo}={}){
     passos(box,etapas,1); const d=calcular(ev);
     passos(box,etapas,2); let txt=null;
     try{ txt=await sample.json(promptRedacao(material,d),{cache:false}) }catch{ txt=null }
-    renderDiag(box,d,txt,titulo); return {d,txt};
-  }catch(e){ box.replaceChildren(el("p",{class:"err",text:erroTexto(e)})); return null }
+    pararStatus(); renderDiag(box,d,txt,titulo); return {d,txt};
+  }catch(e){ pararStatus(); box.replaceChildren(el("p",{class:"err",text:erroTexto(e)})); return null }
 }
 
 /* ================= RENDER DO DIAGNÓSTICO ================= */
