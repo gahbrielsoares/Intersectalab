@@ -1,3 +1,11 @@
-export * from "./tipos.js";
-export * from "./pontuacao.js";
-export { rubricaV0 } from "./rubrica/v0.js";
+export * from "./contrato.js";
+export { FONTES } from "./fontes.js";
+export { LIMIARES, severidade } from "./pecas/base.js";
+export { rei } from "./pecas/rei.js";
+export { rainha } from "./pecas/rainha.js";
+export { torre } from "./pecas/torre.js";
+export { bispo } from "./pecas/bispo.js";
+export { cavalo } from "./pecas/cavalo.js";
+export { peao } from "./pecas/peao.js";
+export { PECAS, PESOS, REGRAS_TABULEIRO, VERSAO_METODO, calcularDiagnostico, validarPecas } from "./tabuleiro.js";
+export type { Diagnostico } from "./tabuleiro.js";

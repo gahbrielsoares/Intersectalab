@@ -26,7 +26,7 @@ flowchart LR
 
 | Pacote | Responsabilidade | Status |
 |---|---|---|
-| `scm-engine` | Tipos do método, rubrica versionada, cálculo do score, travas e severidade | v0 pronto, rubrica em rascunho |
+| `scm-engine` | Uma peça por arquivo, tabuleiro com pesos e regras entre peças, fontes científicas | v0.2 com base científica |
 | `llm` | Abstração do provedor, prompts versionados, saída estruturada validada por schema | a fazer |
 | `ingest` | PDF → texto segmentado, com referência de página | a fazer |
 | `reports` | Dossiê por projeto e relatório de portfólio | a fazer |

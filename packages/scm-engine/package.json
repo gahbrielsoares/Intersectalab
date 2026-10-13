@@ -1,15 +1,17 @@
 {
   "name": "@intersecta/scm-engine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Motor do Scientific Chess Method: rubrica versionada e cálculo determinístico do score",
+  "description": "Motor do Scientific Chess Method: uma peça por módulo, tabuleiro que combina as peças e fontes científicas de cada regra",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:site": "esbuild src/site.ts --bundle --format=iife --global-name=SCM --target=es2019 --outfile=../../apps/web-estatico/scm-engine.js"
   },
   "devDependencies": {
+    "esbuild": "0.24.0",
     "typescript": "5.6.3",
     "vitest": "2.1.8"
   }
