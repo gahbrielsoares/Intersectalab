@@ -302,9 +302,24 @@ const MODELO_PADRAO={gemini:"gemini-flash-latest",anthropic:"claude-sonnet-5-5"}
 const IA={provider:"gemini",key:null,model:MODELO_PADRAO.gemini};
 try{IA.provider=sessionStorage.getItem("ix_prov")||IA.provider;IA.key=sessionStorage.getItem("ix_key");IA.model=sessionStorage.getItem("ix_model")||MODELO_PADRAO[IA.provider]}catch{}
 function juntarTurnos(t){const out=[];for(const m of t){const l=out[out.length-1];if(l&&l.role===m.role)l.content+="\n\n"+m.content;else out.push({role:m.role,content:m.content})}return out}
+const esperar=ms=>new Promise(r=>setTimeout(r,ms));
+function avisar(t){ try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
 async function chamarIA(messages,opts={}){
   if(!IA.key){abrirChave();throw {code:"no_key"}}
-  return IA.provider==="gemini"?chamarGemini(messages,opts):chamarAnthropic(messages,opts);
+  const chamar=()=>IA.provider==="gemini"?chamarGemini(messages,opts):chamarAnthropic(messages,opts);
+  const pausas=[3000,8000];
+  for(let rodada=0;;rodada++){
+    let ultimo;
+    for(let t=0;t<=pausas.length;t++){
+      try{ return await chamar() }
+      catch(e){ ultimo=e; if(e?.code!=="overloaded"&&e?.code!=="rate_limited") throw e;
+        if(t<pausas.length){ avisar(`${IA.model} ocupado, tentando de novo em ${pausas[t]/1000}s…`); await esperar(pausas[t]); } }
+    }
+    const prox=IA.provider==="gemini"?(IA.alternativos||[]).shift():null;
+    if(!prox||rodada>=3) throw ultimo;
+    avisar(`${IA.model} continua sobrecarregado. Trocando para ${prox}.`);
+    IA.model=prox; try{ $("#modelIn").value=prox }catch{}
+  }
 }
 async function lerSSE(r,aoDado){
   const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
@@ -320,21 +335,21 @@ async function chamarGemini(messages,{onText,maxTokens=8192,json=false}={}){
   try{ r=await fetch(onText?`${base}:streamGenerateContent?alt=sse`:`${base}:generateContent`,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":IA.key},body:JSON.stringify(corpo)}) }
   catch{ throw {code:"network"} }
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{}
-    throw {code:r.status===400&&/api key/i.test(m)||r.status===403?"bad_key":r.status===429?"rate_limited":r.status===404?"bad_model":"upstream_error",message:m}}
+    throw {code:r.status===400&&/api key/i.test(m)||r.status===403?"bad_key":r.status===429?"rate_limited":r.status===404?"bad_model":(r.status>=500||/high demand|overloaded|unavailable/i.test(m))?"overloaded":"upstream_error",message:m}}
   const pegar=d=>(d.candidates?.[0]?.content?.parts||[]).filter(x=>!x.thought).map(x=>x.text||"").join("");
   if(!onText) return pegar(await r.json());
-  let text=""; await lerSSE(r,d=>{if(d.error)throw {code:"upstream_error",message:d.error.message};const t=pegar(d);if(t){text+=t;onText({text})}}); return text;
+  let text=""; await lerSSE(r,d=>{if(d.error)throw {code:/high demand|overloaded|unavailable/i.test(d.error.message||"")?"overloaded":"upstream_error",message:d.error.message};const t=pegar(d);if(t){text+=t;onText({text})}}); return text;
 }
 async function chamarAnthropic(messages,{onText,maxTokens=8000}={}){
   let r;
   try{ r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":IA.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:IA.model,max_tokens:maxTokens,messages,stream:!!onText})}) }
   catch{ throw {code:"network"} }
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{}
-    throw {code:r.status===401?"bad_key":r.status===429?"rate_limited":(r.status===404||/model/i.test(m))?"bad_model":r.status===400&&/credit|billing/i.test(m)?"no_credit":"upstream_error",message:m}}
+    throw {code:(r.status===529||r.status>=500)?"overloaded":r.status===401?"bad_key":r.status===429?"rate_limited":(r.status===404||/model/i.test(m))?"bad_model":r.status===400&&/credit|billing/i.test(m)?"no_credit":"upstream_error",message:m}}
   if(!onText){const j=await r.json();return (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")}
   let text=""; await lerSSE(r,d=>{
     if(d.type==="content_block_delta"&&d.delta?.type==="text_delta"){text+=d.delta.text;onText({text})}
-    if(d.type==="error")throw {code:"upstream_error",message:d.error?.message}});
+    if(d.type==="error")throw {code:d.error?.type==="overloaded_error"?"overloaded":"upstream_error",message:d.error?.message}});
   return text;
 }
 function lerJson(t){const s=t.replace(/```json|```/g,"").trim();try{return JSON.parse(s)}catch{}
@@ -348,6 +363,15 @@ async function modelosGemini(key){
   if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{} throw {code:(r.status===400||r.status===401||r.status===403)?"bad_key":"upstream_error",message:m}}
   const j=await r.json();
   return (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent")).map(m=>m.name.replace(/^models\//,""));
+}
+function ordenarCandidatos(lista){
+  const ver=n=>(n.match(/gemini-([\d.]+)/)?.[1]||"0").split(".").map(Number);
+  const cmp=(a,b)=>{const x=ver(a),y=ver(b);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (y[i]||0)-(x[i]||0)}return 0};
+  const ruim=/image|tts|audio|live|embedding|thinking|exp|robotics|computer|native|aqa|gemma/;
+  const flash=lista.filter(n=>/flash/.test(n)&&!ruim.test(n)&&!/lite/.test(n));
+  const lite=lista.filter(n=>/flash/.test(n)&&!ruim.test(n)&&/lite/.test(n));
+  const ord=a=>[...a.filter(n=>/latest/.test(n)),...a.filter(n=>!/preview|latest/.test(n)).sort(cmp),...a.filter(n=>/preview/.test(n)).sort(cmp)];
+  return [...new Set([...ord(flash),...ord(lite)])];
 }
 function escolherFlash(lista,atual){
   if(atual&&lista.includes(atual)) return atual;
@@ -364,7 +388,7 @@ function atualizarKeyBtn(){ $("#keyBtn").textContent=IA.key?"IA conectada":"Cone
 const $=s=>document.querySelector(s);
 const el=(t,a={},...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a)){if(x==="class")e.className=y;else if(x==="text")e.textContent=y;else e.setAttribute(x,y)}k.forEach(z=>e.append(z));return e};
 const erroTexto = e => erroBase(e)+(e?.message?` Detalhe: ${String(e.message).slice(0,200)}`:"");
-const erroBase = e => ({rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
+const erroBase = e => ({overloaded:"O modelo de IA está sobrecarregado agora. Tente de novo em instantes.",rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
 
 $("#keyBtn").onclick=()=>abrirChave();
 $("#keyClose").onclick=()=>dlg().close();
@@ -379,6 +403,7 @@ $("#keyForm").onsubmit=async(ev)=>{ev.preventDefault();
       if(!lista.length) throw {code:"upstream_error",message:"Nenhum modelo de texto disponível para esta chave."};
       $("#modelosList").replaceChildren(...lista.map(n=>Object.assign(document.createElement("option"),{value:n})));
       model=escolherFlash(lista,model); $("#modelIn").value=model; $("#modelHint").textContent=`Usando ${model}.`;
+      IA.alternativos=ordenarCandidatos(lista).filter(n=>n!==model).slice(0,4);
     }catch(e){ $("#keyErr").textContent=erroTexto(e); $("#modelHint").textContent=""; $("#keySave").disabled=false; return }
     $("#keySave").disabled=false;
   }
@@ -416,14 +441,15 @@ async function enviar(texto){
   if(!texto.trim()||ocupado) return;
   if(!sample){$("#chatNote").textContent="IA indisponível nesta visualização.";return}
   ocupado=true; atualizarBotao(); $("#send").disabled=true;
-  addMsg("user",texto.length>600?texto.slice(0,600)+"… [texto completo enviado]":texto);
+  const minha=addMsg("user",texto.length>600?texto.slice(0,600)+"… [texto completo enviado]":texto);
   turns.push({role:"user",content:texto});
   const bolha=addMsg("ai","Pensando…");
   try{
     const ctx=[{role:"user",content:ENTREVISTA+"\n\nA conversa começa agora. Sua primeira fala foi: "+SAUDACAO},...turns.slice(-24)];
     const {text}=await sample(ctx,{cache:false,onText:({text})=>{bolha.textContent=text;$("#msgs").scrollTop=1e9}});
     turns.push({role:"assistant",content:text});
-  }catch(e){ bolha.remove(); addMsg("sys",erroTexto(e)); turns.pop(); if(e?.code==="bad_key"||e?.code==="bad_model") abrirChave(erroTexto(e)); }
+  }catch(e){ bolha.remove(); minha.remove(); addMsg("sys",erroTexto(e)+" Sua mensagem voltou para a caixa de texto; é só enviar de novo."); turns.pop();
+    if(!texto.startsWith("[Anexo:")) $("#input").value=texto; if(e?.code==="bad_key"||e?.code==="bad_model") abrirChave(erroTexto(e)); }
   ocupado=false; $("#send").disabled=false; atualizarBotao();
 }
 $("#send").onclick=()=>{const v=$("#input").value;$("#input").value="";enviar(v)};
