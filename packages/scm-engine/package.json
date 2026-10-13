@@ -1,0 +1,16 @@
+{
+  "name": "@intersecta/scm-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Motor do Scientific Chess Method: rubrica versionada e cálculo determinístico do score",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vitest": "2.1.8"
+  }
+}

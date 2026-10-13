@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Intersecta Lab · Protótipo do diagnóstico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --paper:#F4F6F3; --surface:#FFFFFF; --board-a:#E4E9E2; --board-b:#D3DBD1;
+  --ink:#17212B; --muted:#5B6873; --line:#C8D0C6; --teal:#1E5C58; --teal-ink:#FFFFFF;
+  --critico:#A3302B; --alto:#A8650F; --medio:#5F6E25; --ok:#2C6B47;
+  --sans:"Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif:"Instrument Serif", Georgia, "Times New Roman", serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#10171E; --surface:#16212A; --board-a:#1C2833; --board-b:#24323F;
+    --ink:#E6ECE5; --muted:#9AA7B0; --line:#2F3D4A; --teal:#5DB0A6; --teal-ink:#0C1A18;
+    --critico:#E07A73; --alto:#E0A458; --medio:#B5C46A; --ok:#7CC49A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#10171E; --surface:#16212A; --board-a:#1C2833; --board-b:#24323F;
+  --ink:#E6ECE5; --muted:#9AA7B0; --line:#2F3D4A; --teal:#5DB0A6; --teal-ink:#0C1A18;
+  --critico:#E07A73; --alto:#E0A458; --medio:#B5C46A; --ok:#7CC49A;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.wrap{max-width:920px;margin:0 auto;padding:0 20px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-size:1.6rem;line-height:1}
+.brand small{display:block;font-family:var(--sans);font-size:.8rem;color:var(--muted);margin-top:4px}
+.tabs{display:flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.tabs button{border:0;background:none;padding:7px 16px;border-radius:999px;cursor:pointer;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--teal);color:var(--teal-ink)}
+h1{font-family:var(--serif);font-weight:400;font-size:clamp(1.8rem,4vw,2.4rem);line-height:1.15;margin:0 0 8px}
+h2{font-family:var(--serif);font-weight:400;font-size:1.6rem;margin:32px 0 12px}
+h3{font-size:1rem;margin:0 0 4px}
+p.lead{color:var(--muted);margin:0 0 20px;max-width:62ch}
+.btn{border:1px solid var(--teal);background:var(--teal);color:var(--teal-ink);padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn.ghost{background:transparent;color:var(--teal)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.note{font-size:.85rem;color:var(--muted)}
+.err{color:var(--critico);font-size:.9rem}
+
+/* chat */
+.chat{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;height:min(62vh,560px)}
+.msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:78ch;padding:10px 14px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.ai{background:var(--board-a);align-self:flex-start;border-top-left-radius:3px}
+.msg.user{background:var(--teal);color:var(--teal-ink);align-self:flex-end;border-top-right-radius:3px}
+.msg.sys{align-self:center;font-size:.85rem;color:var(--muted);background:none;padding:2px}
+.composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;align-items:flex-end}
+.composer textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--paper);min-height:44px;max-height:160px}
+.icon-btn{border:1px solid var(--line);background:var(--paper);border-radius:8px;width:44px;height:44px;cursor:pointer;flex:none}
+
+/* diagnosis */
+.diag{margin-top:28px}
+.score-line{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}
+.score{font-family:var(--serif);font-size:4.5rem;line-height:.9}
+.score-meta{color:var(--muted);max-width:52ch}
+.board{display:grid;grid-template-columns:repeat(3,1fr);margin:20px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sq{padding:14px;min-height:118px;display:flex;flex-direction:column;gap:6px;position:relative}
+.sq:nth-child(odd){background:var(--board-a)} .sq:nth-child(even){background:var(--board-b)}
+.sq .glyph{font-size:2rem;line-height:1}
+.sq .nm{font-size:.88rem;font-weight:600}
+.sq .val{font-family:var(--serif);font-size:1.5rem;line-height:1}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--teal)}
+.tag{font-size:.72rem;font-weight:600;padding:2px 7px;border-radius:4px;align-self:flex-start;color:#fff}
+.tag.CRITICO{background:var(--critico)} .tag.ALTO{background:var(--alto)} .tag.MEDIO{background:var(--medio)}
+.sq.mate{box-shadow:inset 0 0 0 3px var(--critico)}
+.mate-box{border-left:4px solid var(--critico);padding:12px 16px;background:var(--surface);border-radius:0 8px 8px 0;margin:16px 0}
+.piece-detail{border-top:1px solid var(--line);padding:16px 0;display:grid;grid-template-columns:44px 1fr;gap:4px 12px}
+.piece-detail .glyph{font-size:1.8rem;line-height:1.1}
+.piece-detail dl{margin:6px 0 0;display:grid;grid-template-columns:max-content 1fr;gap:4px 12px}
+.piece-detail dt{color:var(--muted);font-size:.88rem}
+.piece-detail dd{margin:0}
+details.evid{margin-top:8px;font-size:.88rem;color:var(--muted)}
+details.evid li{margin:4px 0}
+.progress{display:flex;flex-direction:column;gap:4px;margin:16px 0;font-size:.92rem}
+.progress .done{color:var(--muted)} .progress .now{font-weight:600}
+
+/* NIT */
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field input,.field textarea{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--surface)}
+.field textarea{min-height:120px;resize:vertical}
+.plist{list-style:none;padding:0;margin:12px 0}
+.plist li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);font-size:.82rem}
+td.cell{text-align:center;font-variant-numeric:tabular-nums}
+td.cell span{display:inline-block;min-width:36px;padding:3px 6px;border-radius:4px}
+tr.click{cursor:pointer} tr.click:hover{background:var(--board-a)}
+.heat-CRITICO{background:color-mix(in srgb,var(--critico) 28%,transparent)}
+.heat-ALTO{background:color-mix(in srgb,var(--alto) 25%,transparent)}
+.heat-MEDIO{background:color-mix(in srgb,var(--medio) 22%,transparent)}
+.heat-OK{background:color-mix(in srgb,var(--ok) 18%,transparent)}
+.hidden{display:none!important}
+.draft{font-size:.8rem;color:var(--muted);margin-top:28px;border-top:1px solid var(--line);padding-top:12px}
+@media (max-width:640px){
+  .board{grid-template-columns:repeat(2,1fr)}
+  .score{font-size:3.6rem}
+  .sq:nth-child(4n+3){background:var(--board-b)} .sq:nth-child(4n+4){background:var(--board-a)}
+}
+@media (prefers-reduced-motion:no-preference){ .bar i{transition:width .6s ease} }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">Intersecta Lab<small>Scientific Chess Method · protótipo</small></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="pesq">Pesquisador</button>
+    <button role="tab" aria-selected="false" data-view="nit">Núcleo de inovação</button>
+  </div>
+</header>
+
+<p id="noSample" class="err hidden">A IA não está disponível nesta visualização. Abra o protótipo dentro do Claude e permita o uso quando solicitado.</p>
+
+<!-- PESQUISADOR -->
+<section id="view-pesq">
+  <h1>Descubra a posição do seu projeto no tabuleiro</h1>
+  <p class="lead">Conte sobre o projeto com suas palavras ou anexe o PDF. A conversa percorre as seis peças do método. Quando quiser, gere o diagnóstico.</p>
+  <div class="chat">
+    <div class="msgs" id="msgs" aria-live="polite"></div>
+    <div class="composer">
+      <button class="icon-btn" id="attach" title="Anexar PDF ou TXT" aria-label="Anexar PDF ou TXT">📎</button>
+      <input type="file" id="file" accept=".pdf,.txt,.md" hidden>
+      <textarea id="input" rows="1" placeholder="Escreva sua resposta…" aria-label="Mensagem"></textarea>
+      <button class="btn" id="send">Enviar</button>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn" id="genDiag" disabled>Gerar diagnóstico</button>
+    <button class="btn ghost" id="loadExample">Usar projeto de exemplo</button>
+    <span class="note" id="chatNote"></span>
+  </div>
+  <div id="diagPesq"></div>
+</section>
+
+<!-- NIT -->
+<section id="view-nit" class="hidden">
+  <h1>Triagem do portfólio</h1>
+  <p class="lead">Adicione os projetos do núcleo. Cada um é avaliado com os mesmos critérios, e o resultado sai lado a lado para priorizar mentoria e fomento.</p>
+  <div class="field"><label for="pTitle">Nome do projeto</label><input id="pTitle"></div>
+  <div class="field"><label for="pText">Descrição do projeto (texto ou PDF)</label><textarea id="pText"></textarea></div>
+  <div class="row">
+    <button class="btn ghost" id="pAdd">Adicionar projeto</button>
+    <button class="btn ghost" id="pPdf">Anexar PDF</button>
+    <input type="file" id="pFile" accept=".pdf,.txt,.md" hidden>
+    <button class="btn ghost" id="pExamples">Carregar 3 projetos de exemplo</button>
+  </div>
+  <ul class="plist" id="plist"></ul>
+  <div class="row"><button class="btn" id="runPortfolio" disabled>Analisar portfólio</button><span class="note" id="nitNote"></span></div>
+  <div id="portfolio"></div>
+  <div id="diagNit"></div>
+</section>
+
+<p class="draft">Rubrica v0.1.0 em rascunho, pendente de validação pela criadora do método. O score é calculado por regras fixas a partir das evidências extraídas; a IA não atribui a nota.</p>
+</div>
+
+<script>
+/* ================= RUBRICA (espelho de packages/scm-engine) ================= */
+const anc = t => ({0:`Não há informação sobre ${t}, ou o pesquisador declara não saber.`,1:`${t} é afirmado sem dado, fonte ou teste.`,2:`Há dado sobre ${t}, mas indireto, de laboratório ou incompleto.`,3:`${t} é sustentado por dado externo e verificável, testado fora da bancada.`});
+const c = (id,descricao,pergunta,peso=1)=>({id,descricao,pergunta,peso,ancoras:anc(descricao.toLowerCase())});
+const RUBRICA = {
+  versao:"0.1.0",
+  pecas:[
+    {id:"rei",nome:"Rei · O Problema",simbolo:"♔",peso:3,criterios:[
+      c("rei.existe_independente","Existência do problema independente da solução","Esse problema existe independente da sua solução, ou você precisou criar a solução para enxergá-lo?",2),
+      c("rei.impacto_mensuravel","Impacto mensurável do problema","Quanto esse problema custa hoje, e para quem? Como você mediu isso?")]},
+    {id:"rainha",nome:"Rainha · Lógica do Negócio",simbolo:"♕",peso:2,criterios:[
+      c("rainha.ganho_vs_estado_da_arte","Ganho mensurável frente ao estado da arte","Qual é o ganho real e mensurável frente ao que já existe?",2),
+      c("rainha.fora_da_bancada","Comportamento da solução fora da bancada","O que muda quando a solução sai do laboratório?")]},
+    {id:"torre",nome:"Torre · Hipóteses",simbolo:"♖",peso:2,criterios:[
+      c("torre.premissa_critica","Identificação da premissa crítica","Qual premissa central, se falsa, encerra o projeto amanhã?",2),
+      c("torre.teste_sem_vies","Teste da premissa sem viés","Como você testa essa premissa sem enviesar o resultado? Já testou fora do laboratório?")]},
+    {id:"bispo",nome:"Bispo · Mercado",simbolo:"♗",peso:2,criterios:[
+      c("bispo.usuario_vs_pagador","Distinção entre usuário e pagador","Quem usa e quem paga são a mesma pessoa?"),
+      c("bispo.comprador_identificado","Comprador identificado, não presumido","O comprador já foi identificado e contatado, ou é presumido?",2),
+      c("bispo.custo_de_troca","Custo de troca para o comprador","O que esse comprador precisaria abandonar para adotar sua solução?")]},
+    {id:"cavalo",nome:"Cavalo · Riscos",simbolo:"♘",peso:2,criterios:[
+      c("cavalo.regulatorio","Risco regulatório mapeado","Qual barreira regulatória pode travar a comercialização?"),
+      c("cavalo.propriedade_intelectual","Situação de propriedade intelectual","Qual a situação de PI: patente, liberdade de operação, titularidade da ICT?"),
+      c("cavalo.cadeia_fornecimento","Risco de cadeia de fornecimento e produção","Algum insumo, fornecedor ou etapa de escala pode travar o projeto?")]},
+    {id:"peao",nome:"Peão · Equipe",simbolo:"♙",peso:1,criterios:[
+      c("peao.intencao_comercializar","Intenção do cientista principal de comercializar","O cientista principal quer comercializar, ou quer continuar pesquisando?"),
+      c("peao.competencia_comercial","Competência comercial na equipe","A equipe tem quem fecha negócio, ou é a mesma pessoa tentando fazer tudo?",2)]}
+  ],
+  travas:[{peca:"rei",minimo:40,teto:45}],
+  limiares:{critico:35,alto:55,medio:75}
+};
+const CRIT_IDS = RUBRICA.pecas.flatMap(p=>p.criterios.map(c=>c.id));
+
+/* ================= MOTOR DE PONTUAÇÃO (determinístico) ================= */
+const arred = n => Math.round(n*10)/10;
+function severidade(s){const l=RUBRICA.limiares; return s<l.critico?"CRITICO":s<l.alto?"ALTO":s<l.medio?"MEDIO":null}
+function calcular(evidencias){
+  const ev = new Map(evidencias.filter(e=>CRIT_IDS.includes(e.criterio_id)).map(e=>[e.criterio_id,e]));
+  const pecas = RUBRICA.pecas.map(p=>{
+    let soma=0,pt=0; const niv=[];
+    for(const cr of p.criterios){const n=Math.max(0,Math.min(3,Number(ev.get(cr.id)?.nivel)||0)); soma+=(n/3)*cr.peso; pt+=cr.peso; niv.push({id:cr.id,n});}
+    const score=arred(soma/pt*100), min=Math.min(...niv.map(x=>x.n));
+    return {peca:p.id,score,severidade:severidade(score),fracos:niv.filter(x=>x.n===min&&min<3).map(x=>x.id)};
+  });
+  const pesoTot = RUBRICA.pecas.reduce((s,p)=>s+p.peso,0);
+  const semTravas = arred(pecas.reduce((s,r,i)=>s+r.score*RUBRICA.pecas[i].peso,0)/pesoTot);
+  let geral=semTravas; const travas=[];
+  for(const t of RUBRICA.travas){const r=pecas.find(p=>p.peca===t.peca); if(r&&r.score<t.minimo&&geral>t.teto){geral=t.teto;travas.push(t.peca)}}
+  const peso = Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p.peso]));
+  const xeque = pecas.filter(p=>p.severidade).sort((a,b)=>(100-b.score)*peso[b.peca]-(100-a.score)*peso[a.peca]).slice(0,3);
+  return {versao:RUBRICA.versao,geral,semTravas,travas,pecas,xeque,mate:xeque[0]||null,evid:Object.fromEntries(ev)};
+}
+
+/* ================= PROMPTS ================= */
+const rubricaTexto = () => RUBRICA.pecas.map(p=>`${p.simbolo} ${p.nome}\n`+p.criterios.map(c=>`  - ${c.id}: ${c.descricao}. Pergunta-guia: ${c.pergunta}`).join("\n")).join("\n");
+const ancorasTexto = "Níveis de evidência: 0 = ausente ou 'não sei'; 1 = presumido, afirmado sem dado; 2 = parcial, dado indireto, de laboratório ou incompleto; 3 = evidenciado por dado externo e verificável, testado fora da bancada.";
+
+const ENTREVISTA = `Você é a entrevistadora da Intersecta Lab e conduz um diagnóstico pelo Scientific Chess Method. Fale em português do Brasil, com calor humano e rigor.
+Regras:
+- Faça UMA pergunta por vez, curta e específica, baseada no que a pessoa já disse.
+- Percorra as seis peças nesta ordem: Rei, Rainha, Torre, Bispo, Cavalo, Peão. Não pule para a próxima enquanto a atual estiver vaga, mas não insista mais de duas vezes; "não sei" é uma resposta válida e você segue em frente.
+- Você questiona, não valida. Nunca elogie a ciência nem dê notas. Peça dado, fonte, número, teste fora do laboratório.
+- Se receber texto de um PDF, leia, diga em uma frase o que entendeu e pergunte só o que faltar.
+- Quando as seis peças tiverem sido cobertas, diga que já é possível gerar o diagnóstico no botão abaixo.
+- Respostas com no máximo 4 frases. Sem listas, sem markdown.
+Critérios do método:
+${rubricaTexto()}`;
+
+function promptExtracao(material){
+  return `Você é avaliadora do Scientific Chess Method. Leia o material de um projeto de ciência aplicada e classifique a evidência disponível para CADA critério. Seja rigorosa: sem dado concreto, o nível é no máximo 1. Não presuma o que não está escrito.
+${ancorasTexto}
+Critérios:
+${rubricaTexto()}
+
+MATERIAL DO PROJETO:
+"""
+${material.slice(0,90000)}
+"""
+
+Responda somente com um array JSON contendo exatamente um objeto por critério (${CRIT_IDS.length} objetos), no formato:
+[{"criterio_id":"rei.existe_independente","nivel":2,"justificativa":"uma frase","trechos_fonte":["trecho curto copiado do material"]}]`;
+}
+
+function promptRedacao(material,d){
+  const resumo = d.pecas.map(r=>{const p=RUBRICA.pecas.find(x=>x.id===r.peca);return `${p.nome}: score ${r.score}, severidade ${r.severidade||"sem alerta"}; critérios: `+p.criterios.map(c=>`${c.id}=nível ${d.evid[c.id]?.nivel??0} (${d.evid[c.id]?.justificativa||"sem evidência"})`).join("; ")}).join("\n");
+  return `Você redige o diagnóstico da Intersecta Lab pelo Scientific Chess Method, em português do Brasil, tom direto e respeitoso, como uma avaliadora experiente de NIT e venture capital. Os números JÁ FORAM CALCULADOS e não podem ser alterados nem mencionados de forma diferente.
+Score geral: ${d.geral}/100. Peças em xeque, em ordem de urgência: ${d.xeque.map(x=>x.peca).join(", ")||"nenhuma"}. Risco de xeque-mate: ${d.mate?.peca||"nenhum"}.
+Avaliação por peça:
+${resumo}
+
+Material do projeto (para contexto):
+"""
+${material.slice(0,40000)}
+"""
+
+Responda somente com JSON neste formato:
+{"leitura_geral":"2 frases sobre a posição do projeto",
+ "frase_xeque_mate":"uma frase: a vulnerabilidade com maior chance de derrubar tudo",
+ "pecas":{"rei":{"solido":"...","fraco":"...","acao":"uma ação concreta","criterio_sucesso":"como saber que deu certo, mensurável","custo_de_errar":"uma frase"}, "rainha":{...}, "torre":{...}, "bispo":{...}, "cavalo":{...}, "peao":{...}}}`;
+}
+
+/* ================= INFRA ================= */
+let sample=null;
+const $=s=>document.querySelector(s);
+const el=(t,a={},...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a)){if(x==="class")e.className=y;else if(x==="text")e.textContent=y;else e.setAttribute(x,y)}k.forEach(z=>e.append(z));return e};
+const erroTexto = e => ({not_granted:"O uso da IA não foi permitido nesta visualização.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
+
+(async()=>{ try{ sample = window.claude ? await window.claude.use("sample") : null }catch{ sample=null }
+  if(!sample) $("#noSample").classList.remove("hidden"); })();
+
+async function lerArquivo(f){
+  if(/\.pdf$/i.test(f.name)){
+    if(!window.pdfjsLib) throw new Error("pdf");
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const doc = await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+    let out=""; for(let i=1;i<=Math.min(doc.numPages,40);i++){const pg=await doc.getPage(i);const tc=await pg.getTextContent();out+=`\n[página ${i}]\n`+tc.items.map(x=>x.str).join(" ")}
+    return out.trim();
+  }
+  return (await f.text()).trim();
+}
+
+/* ================= TABS ================= */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  $("#view-pesq").classList.toggle("hidden",b.dataset.view!=="pesq");
+  $("#view-nit").classList.toggle("hidden",b.dataset.view!=="nit");
+});
+
+/* ================= CHAT (pesquisador) ================= */
+const SAUDACAO="Oi, que bom ter você aqui! Vamos construir juntos o diagnóstico do seu projeto pelo Scientific Chess Method. Conte sobre ele com suas palavras, no seu ritmo, ou anexe o PDF do projeto. Se em algum momento não souber uma resposta, tudo bem: não saber também é uma resposta.";
+const turns=[]; let anexo=""; let ocupado=false;
+function addMsg(role,text){const m=el("div",{class:"msg "+role,text});$("#msgs").append(m);$("#msgs").scrollTop=1e9;return m}
+addMsg("ai",SAUDACAO);
+function atualizarBotao(){ const n=turns.filter(t=>t.role==="user").length; $("#genDiag").disabled = ocupado || !(n>=2 || anexo); }
+
+async function enviar(texto){
+  if(!texto.trim()||ocupado) return;
+  if(!sample){$("#chatNote").textContent="IA indisponível nesta visualização.";return}
+  ocupado=true; atualizarBotao(); $("#send").disabled=true;
+  addMsg("user",texto.length>600?texto.slice(0,600)+"… [texto completo enviado]":texto);
+  turns.push({role:"user",content:texto});
+  const bolha=addMsg("ai","Pensando…");
+  try{
+    const ctx=[{role:"user",content:ENTREVISTA+"\n\nA conversa começa agora. Sua primeira fala foi: "+SAUDACAO},...turns.slice(-24)];
+    const {text}=await sample(ctx,{cache:false,onText:({text})=>{bolha.textContent=text;$("#msgs").scrollTop=1e9}});
+    turns.push({role:"assistant",content:text});
+  }catch(e){ bolha.textContent=e?.text||""; addMsg("sys",erroTexto(e)); turns.pop(); }
+  ocupado=false; $("#send").disabled=false; atualizarBotao();
+}
+$("#send").onclick=()=>{const v=$("#input").value;$("#input").value="";enviar(v)};
+$("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#send").click()}});
+$("#input").addEventListener("input",e=>{e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,160)+"px"});
+$("#attach").onclick=()=>$("#file").click();
+$("#file").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  addMsg("sys",`Lendo ${f.name}…`);
+  try{ const t=await lerArquivo(f); if(!t) throw 0; anexo=t; atualizarBotao();
+    await enviar(`[Anexo: ${f.name}]\n\n${t.slice(0,60000)}`);
+  }catch{ addMsg("sys","Não consegui ler o texto desse arquivo. Copie e cole o conteúdo na conversa."); }
+};
+
+function materialPesquisador(){ return turns.map(t=>(t.role==="user"?"PESQUISADOR: ":"ENTREVISTADORA: ")+t.content).join("\n\n"); }
+
+$("#genDiag").onclick=async()=>{
+  ocupado=true; atualizarBotao();
+  try{ const r=await pipeline(materialPesquisador(),$("#diagPesq")); if(r) $("#diagPesq").scrollIntoView({behavior:"smooth"}); }
+  finally{ ocupado=false; atualizarBotao(); }
+};
+
+/* ================= PIPELINE: extrair → calcular → redigir ================= */
+function passos(box,lista,atual){box.replaceChildren(el("div",{class:"progress"},...lista.map((p,i)=>el("div",{class:i<atual?"done":i===atual?"now":"",text:(i<atual?"✓ ":i===atual?"… ":"  ")+p}))))}
+async function extrair(material){
+  const arr=await sample.json(promptExtracao(material),{cache:false});
+  if(!Array.isArray(arr)) throw {code:"invalid_json"};
+  return arr.filter(x=>x&&CRIT_IDS.includes(x.criterio_id));
+}
+async function pipeline(material,box,{titulo}={}){
+  if(!sample){box.replaceChildren(el("p",{class:"err",text:"IA indisponível nesta visualização."}));return null}
+  const etapas=["Extraindo evidências por critério","Calculando o score pela rubrica","Redigindo o diagnóstico"];
+  try{
+    passos(box,etapas,0); const ev=await extrair(material);
+    passos(box,etapas,1); const d=calcular(ev);
+    passos(box,etapas,2); let txt=null;
+    try{ txt=await sample.json(promptRedacao(material,d),{cache:false}) }catch{ txt=null }
+    renderDiag(box,d,txt,titulo); return {d,txt};
+  }catch(e){ box.replaceChildren(el("p",{class:"err",text:erroTexto(e)})); return null }
+}
+
+/* ================= RENDER DO DIAGNÓSTICO ================= */
+const nomeSev={CRITICO:"Crítico",ALTO:"Alto",MEDIO:"Médio"};
+function renderDiag(box,d,txt,titulo){
+  const P=Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p]));
+  const root=el("div",{class:"diag"});
+  if(titulo) root.append(el("h2",{text:titulo}));
+  root.append(el("div",{class:"score-line"},
+    el("div",{class:"score",text:String(Math.round(d.geral))}),
+    el("div",{class:"score-meta"},
+      el("div",{text:"Posição no tabuleiro, de 0 a 100. "+(d.travas.length?`Limitada porque o Rei está fraco (sem limite seria ${Math.round(d.semTravas)}).`:"")}),
+      el("div",{text:txt?.leitura_geral||""}))));
+  const board=el("div",{class:"board"});
+  for(const r of d.pecas){const p=P[r.peca];
+    const sq=el("div",{class:"sq"+(d.mate?.peca===r.peca?" mate":"")},
+      el("div",{class:"glyph","aria-hidden":"true",text:p.simbolo}),
+      el("div",{class:"nm",text:p.nome}),
+      el("div",{class:"val",text:String(Math.round(r.score))}),
+      el("div",{class:"bar"},Object.assign(el("i"),{style:`width:${r.score}%`})));
+    if(r.severidade) sq.append(el("span",{class:"tag "+r.severidade,text:nomeSev[r.severidade]}));
+    board.append(sq)}
+  root.append(board);
+  if(d.mate) root.append(el("div",{class:"mate-box"},el("h3",{text:`Risco de xeque-mate: ${P[d.mate.peca].nome}`}),el("div",{text:txt?.frase_xeque_mate||"Esta é a peça com maior lacuna ponderada pelo método."})));
+  if(d.xeque.length) root.append(el("p",{class:"note",text:"Peças em xeque, por urgência: "+d.xeque.map(x=>`${P[x.peca].nome} (${nomeSev[x.severidade]})`).join(", ")+"."}));
+  root.append(el("h2",{text:"Análise peça a peça"}));
+  const ordem=[...d.xeque.map(x=>x.peca),...d.pecas.map(x=>x.peca).filter(id=>!d.xeque.some(x=>x.peca===id))];
+  for(const id of ordem){const p=P[id],r=d.pecas.find(x=>x.peca===id),t=txt?.pecas?.[id]||{};
+    const dl=el("dl");
+    for(const [k,lab] of [["solido","Sólido"],["fraco","Fraco"],["acao","Próximo movimento"],["criterio_sucesso","Critério de sucesso"],["custo_de_errar","Custo de errar"]]) if(t[k]) dl.append(el("dt",{text:lab}),el("dd",{text:t[k]}));
+    const ul=el("ul");
+    for(const cr of p.criterios){const e=d.evid[cr.id]; ul.append(el("li",{text:`${cr.descricao}: nível ${e?.nivel??0} de 3. ${e?.justificativa||"Sem evidência no material."}`+(e?.trechos_fonte?.[0]?` Trecho: “${String(e.trechos_fonte[0]).slice(0,160)}”`:"")}))}
+    root.append(el("div",{class:"piece-detail"},
+      el("div",{class:"glyph","aria-hidden":"true",text:p.simbolo}),
+      el("div",{},el("h3",{text:`${p.nome} · ${Math.round(r.score)}`+(r.severidade?` · ${nomeSev[r.severidade]}`:"")}),dl,
+        el("details",{class:"evid"},el("summary",{text:"Evidências por critério"}),ul))));
+  }
+  if(!txt) root.append(el("p",{class:"note",text:"O texto explicativo não foi gerado desta vez; o score e as evidências acima estão completos."}));
+  const dl=el("button",{class:"btn ghost",text:"Baixar dossiê (.md)"}); dl.onclick=()=>baixar(d,txt,titulo);
+  root.append(el("div",{class:"row",style:"margin-top:16px"},dl));
+  box.replaceChildren(root);
+}
+
+function dossieMd(d,txt,titulo){
+  const P=Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p]));
+  let md=`# Dossiê Intersecta Lab${titulo?" · "+titulo:""}\n\nScientific Chess Method · rubrica v${d.versao}\n\n## Posição no tabuleiro: ${Math.round(d.geral)}/100\n\n${txt?.leitura_geral||""}\n\n`;
+  if(d.mate) md+=`## Risco de xeque-mate\n\n${P[d.mate.peca].nome}: ${txt?.frase_xeque_mate||""}\n\n`;
+  md+=`## Peças\n\n| Peça | Score | Severidade |\n|---|---|---|\n`+d.pecas.map(r=>`| ${P[r.peca].nome} | ${Math.round(r.score)} | ${r.severidade?nomeSev[r.severidade]:"–"} |`).join("\n")+"\n\n";
+  for(const r of d.pecas){const t=txt?.pecas?.[r.peca]||{};md+=`### ${P[r.peca].nome}\n\n`;for(const[k,l]of[["solido","Sólido"],["fraco","Fraco"],["acao","Próximo movimento"],["criterio_sucesso","Critério de sucesso"],["custo_de_errar","Custo de errar"]])if(t[k])md+=`- **${l}:** ${t[k]}\n`;md+="\n"}
+  return md;
+}
+async function baixar(d,txt,titulo){
+  let dw=null; try{dw=window.claude?await window.claude.use("downloads"):null}catch{}
+  const md=dossieMd(d,txt,titulo);
+  if(dw){ try{ await dw.save({filename:`dossie-${(titulo||"projeto").toLowerCase().replace(/[^a-z0-9]+/g,"-")}.md`,data:md}) }catch{} }
+  else { try{ await navigator.clipboard.writeText(md); alert("Dossiê copiado para a área de transferência.") }catch{} }
+}
+
+/* ================= NIT ================= */
+const projetos=[]; let resultados=[];
+function renderLista(){
+  const ul=$("#plist"); ul.replaceChildren(...projetos.map((p,i)=>{const rm=el("button",{class:"btn ghost",text:"Remover"});rm.onclick=()=>{projetos.splice(i,1);renderLista()};return el("li",{},el("span",{text:`${p.titulo} · ${p.texto.length.toLocaleString("pt-BR")} caracteres`}),rm)}));
+  $("#runPortfolio").disabled=!projetos.length;
+}
+$("#pAdd").onclick=()=>{const t=$("#pTitle").value.trim(),x=$("#pText").value.trim(); if(!t||!x){$("#nitNote").textContent="Preencha o nome e a descrição do projeto.";return} projetos.push({titulo:t,texto:x}); $("#pTitle").value="";$("#pText").value="";$("#nitNote").textContent="";renderLista()};
+$("#pPdf").onclick=()=>$("#pFile").click();
+$("#pFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;try{$("#pText").value=await lerArquivo(f);if(!$("#pTitle").value)$("#pTitle").value=f.name.replace(/\.[^.]+$/,"")}catch{$("#nitNote").textContent="Não consegui ler esse arquivo. Cole o texto."}};
+
+$("#runPortfolio").onclick=async()=>{
+  if(!sample){$("#nitNote").textContent="IA indisponível nesta visualização.";return}
+  $("#runPortfolio").disabled=true; resultados=[]; $("#diagNit").replaceChildren();
+  for(let i=0;i<projetos.length;i++){
+    $("#nitNote").textContent=`Avaliando ${i+1} de ${projetos.length}: ${projetos[i].titulo}`;
+    try{ const ev=await extrair(projetos[i].texto); resultados.push({...projetos[i],d:calcular(ev)}) }
+    catch(e){ resultados.push({...projetos[i],erro:erroTexto(e)}) }
+    renderPortfolio();
+  }
+  $("#nitNote").textContent="Portfólio analisado. Toque em um projeto para ver o dossiê completo."; $("#runPortfolio").disabled=false;
+};
+function renderPortfolio(){
+  const P=RUBRICA.pecas; const ok=resultados.filter(r=>r.d).sort((a,b)=>b.d.geral-a.d.geral);
+  const head=el("tr",{},el("th",{text:"Projeto"}),el("th",{text:"Score"}),...P.map(p=>el("th",{title:p.nome,text:p.simbolo+" "+p.nome.split(" · ")[1]})),el("th",{text:"Xeque-mate"}));
+  const rows=ok.map(r=>{const tr=el("tr",{class:"click",tabindex:"0"},el("td",{text:r.titulo}),el("td",{class:"cell"},el("strong",{text:String(Math.round(r.d.geral))})),
+    ...r.d.pecas.map(x=>el("td",{class:"cell"},el("span",{class:"heat-"+(x.severidade||"OK"),text:String(Math.round(x.score))}))),
+    el("td",{text:r.d.mate?P.find(p=>p.id===r.d.mate.peca).nome:"–"}));
+    const abrir=async()=>{ $("#diagNit").scrollIntoView({behavior:"smooth"}); await pipeline(r.texto,$("#diagNit"),{titulo:r.titulo}) };
+    tr.onclick=abrir; tr.onkeydown=e=>{if(e.key==="Enter")abrir()}; return tr});
+  const erros=resultados.filter(r=>r.erro).map(r=>el("p",{class:"err",text:`${r.titulo}: ${r.erro}`}));
+  $("#portfolio").replaceChildren(el("h2",{text:"Benchmark do portfólio"}),el("div",{class:"table-wrap"},el("table",{},el("thead",{},head),el("tbody",{},...rows))),...erros);
+}
+
+/* ================= EXEMPLOS (fictícios) ================= */
+const EX=[
+ {titulo:"Biossensor para agrotóxico em água",texto:"Desenvolvemos um biossensor eletroquímico de baixo custo para detectar glifosato em água de poços rurais. Em laboratório, o limite de detecção foi de 0,5 µg/L, cerca de 10 vezes mais barato por análise que a cromatografia. O problema: pequenos produtores e prefeituras não monitoram a água porque a análise laboratorial custa caro e demora 15 dias. Não fizemos testes em campo ainda. Acreditamos que prefeituras comprariam, mas não conversamos com nenhuma. A patente foi depositada pela universidade em 2025. Não sabemos se o produto precisa de registro na ANVISA ou no INMETRO. O eletrodo usa um reagente importado com um único fornecedor. A equipe é formada pela orientadora e dois doutorandos; a orientadora prefere seguir pesquisando, e um dos doutorandos quer empreender."},
+ {titulo:"Revestimento antimicrobiano para hospitais",texto:"Revestimento à base de nanopartículas de prata para superfícies hospitalares. Infecções hospitalares custam ao SUS bilhões por ano segundo dados do Ministério da Saúde. Testes em laboratório mostraram redução de 99,9% de S. aureus em 24h, comparado a 90% do produto líder. Fizemos um piloto de 3 meses em um hospital universitário com redução de 30% nas contaminações de superfície medidas. O comprador é o setor de compras hospitalar, e o usuário é a equipe de limpeza; já fizemos 12 entrevistas com gestores de compras, 5 demonstraram interesse formal. Precisa de registro na ANVISA como saneante, já mapeamos o caminho com consultoria. Patente concedida. A equipe tem um pesquisador e uma sócia com 10 anos em vendas hospitalares."},
+ {titulo:"Plataforma de IA para prever safra de café",texto:"Usamos imagens de satélite e aprendizado de máquina para prever produtividade de café com 3 meses de antecedência. Nosso modelo teve erro médio de 8% em dados históricos de 2018 a 2023. Achamos que cooperativas e tradings vão usar. O problema é que a previsão de safra hoje é feita por estimativas manuais da Conab. Não sabemos quanto as cooperativas pagariam. Não identificamos riscos regulatórios. O código é nosso. A equipe são três cientistas de dados que querem abrir uma empresa."}
+];
+$("#loadExample").onclick=()=>enviar(EX[0].texto);
+$("#pExamples").onclick=()=>{for(const e of EX) if(!projetos.some(p=>p.titulo===e.titulo)) projetos.push({...e}); renderLista()};
+</script>
+</body>
+</html>
