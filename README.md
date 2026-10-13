@@ -9,7 +9,7 @@ Plataforma de diagnóstico estratégico para ciência aplicada e deep tech, base
 
 ```
 apps/
-  web-estatico/   versão de teste estática (GitHub Pages), IA via chave informada no navegador ✅
+  web-estatico/   versão de teste estática (GitHub Pages), IA via chave informada no navegador (Gemini ou Claude) ✅
   prototipo/      versão de apresentação que roda dentro do Claude ✅
   web/            site + chat de diagnóstico com backend próprio — próxima fase
   nit/            painel institucional — a criar
@@ -32,7 +32,7 @@ npm test
 
 ## Versão de teste online
 
-A pasta `apps/web-estatico/` é publicada no GitHub Pages pela branch `gh-pages`. Ao abrir, clique em **Conectar IA** e informe uma chave da API da Anthropic. A chave fica só no navegador de quem usa e nunca é gravada no repositório.
+A pasta `apps/web-estatico/` é publicada no GitHub Pages pela branch `gh-pages`. Ao abrir, clique em **Conectar IA** e escolha o provedor (Google Gemini, com plano gratuito, ou Anthropic Claude) e informe a chave da API. A chave fica só no navegador de quem usa e nunca é gravada no repositório.
 
 ## Documentação
 
