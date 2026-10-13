@@ -98,7 +98,9 @@
       "Títulos grandes, com tracking negativo e quebra de linha intencional.",
       "O degradê no texto aparece só nas primeiras palavras do título do hero.",
       "Frases em caixa normal (sentence case). Sem rótulos em caixa alta.",
-      "Linhas de texto com no máximo 70 caracteres."
+      "Linhas de texto com no máximo 70 caracteres.",
+      "Sem emojis na interface; ícones, quando necessários, em SVG de traço fino.",
+      "Sem travessões (— ou –) e sem pontos médios (·) como separadores; use vírgula, dois-pontos ou parênteses."
     ]
   },
   "espacamento": {

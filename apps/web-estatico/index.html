@@ -165,7 +165,10 @@ summary{cursor:pointer}
 .gap.n0::before{background:var(--critico)} .gap.n1::before{background:var(--alto)} .gap.n2::before{background:var(--medio)}
 .gap .q{color:var(--muted);font-size:.9rem;margin-top:3px}
 .progress{display:flex;flex-direction:column;gap:5px;margin:12px 0;font-size:.92rem}
-.progress .done{color:var(--muted)} .progress .now{font-weight:600}
+.progress div{position:relative;padding-left:22px}
+.progress div::before{content:"";position:absolute;left:2px;top:.55em;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line)}
+.progress .done{color:var(--muted)} .progress .done::before{background:var(--accent);border-color:var(--accent)}
+.progress .now{font-weight:600} .progress .now::before{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
 .status-card{background:var(--surface);border-radius:22px;padding:24px 28px;margin:48px 0;box-shadow:var(--shadow)}
 .status-head{display:flex;align-items:center;gap:12px;font-weight:600}
 .spin{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;flex:none}
@@ -281,7 +284,7 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
     <div class="dcard">
       <h4>Biossensor para agrotóxico em água</h4>
       <div class="wave"><i style="height:78%"></i><i style="height:55%"></i><i style="height:44%"></i><i class="hot" style="height:22%"></i><i style="height:41%"></i><i style="height:56%"></i></div>
-      <div class="dfoot"><span><b>39</b>/100</span><span class="analyz">✦ Analisando</span></div>
+      <div class="dfoot"><span><b>39</b>/100</span><span class="analyz">Analisando</span></div>
     </div>
     <div class="qcard">
       <div class="chips"><span class="chip">♗ Bispo</span><span class="chip crit">Crítico</span></div>
@@ -324,8 +327,8 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
   <h1>Comece o diagnóstico</h1>
   <p class="lead">Escolha como prefere começar. Com o documento do projeto em mãos, o diagnóstico sai direto. Sem ele, uma conversa guiada levanta as informações.</p>
   <div class="modos" role="tablist" aria-label="Como começar">
-    <button class="modo" role="tab" aria-selected="true" data-modo="doc"><strong>📄 Tenho o documento</strong><span>Envie o PDF ou cole o texto e receba o diagnóstico direto, sem perguntas.</span></button>
-    <button class="modo" role="tab" aria-selected="false" data-modo="chat"><strong>💬 Prefiro conversar</strong><span>Responda perguntas guiadas pelas seis peças e gere o diagnóstico no fim.</span></button>
+    <button class="modo" role="tab" aria-selected="true" data-modo="doc"><strong>Tenho o documento</strong><span>Envie o PDF ou cole o texto e receba o diagnóstico direto, sem perguntas.</span></button>
+    <button class="modo" role="tab" aria-selected="false" data-modo="chat"><strong>Prefiro conversar</strong><span>Responda perguntas guiadas pelas seis peças e gere o diagnóstico no fim.</span></button>
   </div>
   <div id="modoDoc">
     <div class="row" style="margin-bottom:10px">
@@ -343,7 +346,7 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
   <div class="chat">
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="composer">
-      <button class="icon-btn" id="attach" title="Anexar PDF ou TXT" aria-label="Anexar PDF ou TXT">📎</button>
+      <button class="icon-btn" id="attach" title="Anexar PDF ou TXT" aria-label="Anexar PDF ou TXT"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10.2 17.7a1.7 1.7 0 0 1-2.4-2.4L15.5 7.6"/></svg></button>
       <input type="file" id="file" accept=".pdf,.txt,.md" hidden>
       <textarea id="input" rows="1" placeholder="Escreva sua resposta…" aria-label="Mensagem"></textarea>
       <button class="btn" id="send">Enviar</button>
@@ -386,24 +389,24 @@ const c = (id,descricao,pergunta,peso=1)=>({id,descricao,pergunta,peso,ancoras:a
 const RUBRICA = {
   versao:"0.1.0",
   pecas:[
-    {id:"rei",nome:"Rei · O Problema",simbolo:"♔",peso:3,criterios:[
+    {id:"rei",nome:"Rei: O Problema",simbolo:"♔",peso:3,criterios:[
       c("rei.existe_independente","Existência do problema independente da solução","Esse problema existe independente da sua solução, ou você precisou criar a solução para enxergá-lo?",2),
       c("rei.impacto_mensuravel","Impacto mensurável do problema","Quanto esse problema custa hoje, e para quem? Como você mediu isso?")]},
-    {id:"rainha",nome:"Rainha · Lógica do Negócio",simbolo:"♕",peso:2,criterios:[
+    {id:"rainha",nome:"Rainha: Lógica do Negócio",simbolo:"♕",peso:2,criterios:[
       c("rainha.ganho_vs_estado_da_arte","Ganho mensurável frente ao estado da arte","Qual é o ganho real e mensurável frente ao que já existe?",2),
       c("rainha.fora_da_bancada","Comportamento da solução fora da bancada","O que muda quando a solução sai do laboratório?")]},
-    {id:"torre",nome:"Torre · Hipóteses",simbolo:"♖",peso:2,criterios:[
+    {id:"torre",nome:"Torre: Hipóteses",simbolo:"♖",peso:2,criterios:[
       c("torre.premissa_critica","Identificação da premissa crítica","Qual premissa central, se falsa, encerra o projeto amanhã?",2),
       c("torre.teste_sem_vies","Teste da premissa sem viés","Como você testa essa premissa sem enviesar o resultado? Já testou fora do laboratório?")]},
-    {id:"bispo",nome:"Bispo · Mercado",simbolo:"♗",peso:2,criterios:[
+    {id:"bispo",nome:"Bispo: Mercado",simbolo:"♗",peso:2,criterios:[
       c("bispo.usuario_vs_pagador","Distinção entre usuário e pagador","Quem usa e quem paga são a mesma pessoa?"),
       c("bispo.comprador_identificado","Comprador identificado, não presumido","O comprador já foi identificado e contatado, ou é presumido?",2),
       c("bispo.custo_de_troca","Custo de troca para o comprador","O que esse comprador precisaria abandonar para adotar sua solução?")]},
-    {id:"cavalo",nome:"Cavalo · Riscos",simbolo:"♘",peso:2,criterios:[
+    {id:"cavalo",nome:"Cavalo: Riscos",simbolo:"♘",peso:2,criterios:[
       c("cavalo.regulatorio","Risco regulatório mapeado","Qual barreira regulatória pode travar a comercialização?"),
       c("cavalo.propriedade_intelectual","Situação de propriedade intelectual","Qual a situação de PI: patente, liberdade de operação, titularidade da ICT?"),
       c("cavalo.cadeia_fornecimento","Risco de cadeia de fornecimento e produção","Algum insumo, fornecedor ou etapa de escala pode travar o projeto?")]},
-    {id:"peao",nome:"Peão · Equipe",simbolo:"♙",peso:1,criterios:[
+    {id:"peao",nome:"Peão: Equipe",simbolo:"♙",peso:1,criterios:[
       c("peao.intencao_comercializar","Intenção do cientista principal de comercializar","O cientista principal quer comercializar, ou quer continuar pesquisando?"),
       c("peao.competencia_comercial","Competência comercial na equipe","A equipe tem quem fecha negócio, ou é a mesma pessoa tentando fazer tudo?",2)]}
   ],
@@ -443,7 +446,7 @@ Regras:
 - Você questiona, não valida. Nunca elogie a ciência nem dê notas. Peça dado, fonte, número, teste fora do laboratório.
 - Se receber texto de um PDF, leia, diga em uma frase o que entendeu e pergunte só o que faltar.
 - Quando as seis peças tiverem sido cobertas, diga que já é possível gerar o diagnóstico no botão abaixo.
-- Respostas com no máximo 4 frases. Sem listas, sem markdown.
+- Respostas com no máximo 4 frases. Sem listas, sem markdown, sem emojis e sem travessões.
 Critérios do método:
 ${rubricaTexto()}`;
 
@@ -458,7 +461,7 @@ MATERIAL DO PROJETO:
 ${material.slice(0,40000)}
 """
 
-Responda somente com um array JSON contendo exatamente um objeto por critério (${CRIT_IDS.length} objetos). Seja breve: justificativa com no máximo 20 palavras e no máximo 1 trecho de até 15 palavras (lista vazia se não houver). Formato:
+Responda somente com um array JSON contendo exatamente um objeto por critério (${CRIT_IDS.length} objetos). Não use travessões nem emojis. Seja breve: justificativa com no máximo 20 palavras e no máximo 1 trecho de até 15 palavras (lista vazia se não houver). Formato:
 [{"criterio_id":"rei.existe_independente","nivel":2,"justificativa":"frase curta","trechos_fonte":["trecho curto do material"]}]`;
 }
 
@@ -474,7 +477,7 @@ Material do projeto (para contexto):
 ${material.slice(0,40000)}
 """
 
-Seja específica sobre o que está faltando, fraco ou indefinido em cada peça; não suavize lacunas. Cada campo com no máximo 25 palavras.
+Seja específica sobre o que está faltando, fraco ou indefinido em cada peça; não suavize lacunas. Cada campo com no máximo 25 palavras. Não use travessões nem emojis.
 Responda somente com JSON neste formato:
 {"leitura_geral":"2 frases sobre a posição do projeto",
  "frase_xeque_mate":"uma frase: a vulnerabilidade com maior chance de derrubar tudo",
@@ -557,11 +560,13 @@ async function chamarAnthropic(messages,{onText,maxTokens=8000}={}){
   return text;
   } finally { rel.parar() }
 }
+function semTravessao(t){return typeof t==="string"?t.replace(/\s*[\u2014\u2013]\s*/g,", ").replace(/,\s*,/g,",").replace(/[\u{1F300}-\u{1FAFF}\u{2700}-\u{27BF}]/gu,"").trim():t}
+function limparTudo(o){if(Array.isArray(o))return o.map(limparTudo);if(o&&typeof o==="object"){for(const k in o)o[k]=limparTudo(o[k]);return o}return semTravessao(o)}
 function lerJson(t){const s=t.replace(/```json|```/g,"").trim();try{return JSON.parse(s)}catch{}
   const a=Math.min(...["[","{"].map(c=>{const i=s.indexOf(c);return i<0?1e9:i})),b=Math.max(s.lastIndexOf("]"),s.lastIndexOf("}"));
   try{return JSON.parse(s.slice(a,b+1))}catch{throw {code:"invalid_json"}}}
 async function sample(input,opts={}){const msgs=typeof input==="string"?[{role:"user",content:input}]:juntarTurnos(input);return {text:await chamarIA(msgs,opts)}}
-sample.json=async(input,opts={})=>lerJson((await sample(input,{maxTokens:8192,json:true})).text);
+sample.json=async(input,opts={})=>limparTudo(lerJson((await sample(input,{maxTokens:8192,json:true})).text));
 
 async function modelosGemini(key){
   let r; try{ r=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}}) }catch{ throw {code:"network"} }
@@ -693,7 +698,7 @@ async function enviar(texto){
   chatEspera.desenhar(); const tick=setInterval(()=>chatEspera&&chatEspera.desenhar(),1000);
   try{
     const ctx=[{role:"user",content:ENTREVISTA+"\n\nA conversa começa agora. Sua primeira fala foi: "+SAUDACAO},...turns.slice(-24)];
-    const {text}=await sample(ctx,{cache:false,onText:({text})=>{primeiro=true;bolha.textContent=text;$("#msgs").scrollTop=1e9}});
+    const {text}=await sample(ctx,{cache:false,onText:({text})=>{primeiro=true;bolha.textContent=semTravessao(text);$("#msgs").scrollTop=1e9}});
     turns.push({role:"assistant",content:text});
   }catch(e){ bolha.remove(); minha.remove(); addMsg("sys",erroTexto(e)+" Sua mensagem voltou para a caixa de texto; é só enviar de novo."); turns.pop();
     if(!texto.startsWith("[Anexo:")) $("#input").value=texto; if(e?.code==="bad_key"||e?.code==="bad_model") abrirChave(erroTexto(e)); }
@@ -721,14 +726,14 @@ $("#genDiag").onclick=async()=>{
   finally{ ocupado=false; atualizarBotao(); }
 };
 
-/* ================= PIPELINE: extrair → calcular → redigir ================= */
+/* ================= PIPELINE: extrair, calcular, redigir ================= */
 let statusTimer=null,statusInicio=0,statusBox=null,statusTexto="";
 function passos(box,lista,atual){ if(!statusTimer){statusInicio=Date.now();statusTimer=setInterval(desenharStatus,1000)} statusBox=box; box._lista=lista; box._atual=atual; statusTexto=""; desenharStatus(); }
 function pararStatus(){ clearInterval(statusTimer); statusTimer=null; statusBox=null; statusTexto=""; }
 function desenharStatus(){ if(!statusBox) return; const s=Math.floor((Date.now()-statusInicio)/1000), l=statusBox._lista, a=statusBox._atual;
   statusBox.replaceChildren(el("div",{class:"status-card",role:"status"},
-    el("div",{class:"status-head"},el("span",{class:"spin","aria-hidden":"true"}),el("span",{text:`Gerando diagnóstico · ${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`})),
-    el("div",{class:"progress"},...l.map((p,i)=>el("div",{class:i<a?"done":i===a?"now":"",text:(i<a?"✓ ":i===a?"→ ":"· ")+`Etapa ${i+1} de ${l.length}: ${p}`}))),
+    el("div",{class:"status-head"},el("span",{class:"spin","aria-hidden":"true"}),el("span",{text:"Gerando diagnóstico"}),el("span",{class:"note",style:"font-weight:400;font-variant-numeric:tabular-nums",text:`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`})),
+    el("div",{class:"progress"},...l.map((p,i)=>el("div",{class:i<a?"done":i===a?"now":"",text:`Etapa ${i+1} de ${l.length}: ${p}`+(i<a?", concluída":"")}))),
     el("div",{class:"note",text:`Modelo: ${IA.model}. Cada etapa costuma levar de 10 a 60 segundos no plano gratuito.`}),
     ...(statusTexto?[el("div",{class:"note",text:statusTexto})]:[]))); }
 async function extrair(material){
@@ -749,6 +754,7 @@ async function pipeline(material,box,{titulo}={}){
 }
 
 /* ================= RENDER DO DIAGNÓSTICO ================= */
+const curto=p=>{const [a,b]=p.nome.split(": ");return `${a} (${b})`};
 const nomeSev={CRITICO:"Crítico",ALTO:"Alto",MEDIO:"Médio"};
 function renderDiag(box,d,txt,titulo){
   const P=Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p]));
@@ -769,8 +775,8 @@ function renderDiag(box,d,txt,titulo){
     if(r.severidade) sq.append(el("span",{class:"tag "+r.severidade,text:nomeSev[r.severidade]}));
     board.append(sq)}
   root.append(board);
-  if(d.mate) root.append(el("div",{class:"mate-box"},el("h3",{text:`Risco de xeque-mate: ${P[d.mate.peca].nome}`}),el("div",{text:txt?.frase_xeque_mate||"Esta é a peça com maior lacuna ponderada pelo método."})));
-  if(d.xeque.length) root.append(el("p",{class:"note",text:"Peças em xeque, por urgência: "+d.xeque.map(x=>`${P[x.peca].nome} (${nomeSev[x.severidade]})`).join(", ")+"."}));
+  if(d.mate) root.append(el("div",{class:"mate-box"},el("h3",{text:`Risco de xeque-mate: ${curto(P[d.mate.peca])}`}),el("div",{text:txt?.frase_xeque_mate||"Esta é a peça com maior lacuna ponderada pelo método."})));
+  if(d.xeque.length) root.append(el("p",{class:"note",text:"Peças em xeque, por urgência: "+d.xeque.map(x=>`${curto(P[x.peca])}, ${nomeSev[x.severidade].toLowerCase()}`).join("; ")+"."}));
   root.append(secaoPendencias(d));
   root.append(el("h2",{text:"Análise peça a peça"}));
   const ordem=[...d.xeque.map(x=>x.peca),...d.pecas.map(x=>x.peca).filter(id=>!d.xeque.some(x=>x.peca===id))];
@@ -781,7 +787,7 @@ function renderDiag(box,d,txt,titulo){
     for(const cr of p.criterios){const e=d.evid[cr.id]; ul.append(el("li",{text:`${cr.descricao}: nível ${e?.nivel??0} de 3. ${e?.justificativa||"Sem evidência no material."}`+(e?.trechos_fonte?.[0]?` Trecho: “${String(e.trechos_fonte[0]).slice(0,160)}”`:"")}))}
     root.append(el("div",{class:"piece-detail"},
       el("div",{class:"glyph","aria-hidden":"true",text:p.simbolo}),
-      el("div",{},el("h3",{text:`${p.nome} · ${Math.round(r.score)}`+(r.severidade?` · ${nomeSev[r.severidade]}`:"")}),dl,
+      el("div",{},el("h3",{text:`${p.nome}, score ${Math.round(r.score)}`},...(r.severidade?[" ",el("span",{class:"tag "+r.severidade,text:nomeSev[r.severidade]})]:[])),dl,
         el("details",{class:"evid"},el("summary",{text:"Evidências por critério"}),ul))));
   }
   if(!txt) root.append(el("p",{class:"note",text:"O texto explicativo não foi gerado desta vez; o score e as evidências acima estão completos."}));
@@ -800,7 +806,7 @@ function secaoPendencias(d){
   const g=pendencias(d), box=el("div",{class:"gaps"},el("h2",{text:"Pontos a resolver"}),
     el("p",{class:"note",text:"Lista gerada pelas regras do método a partir das evidências encontradas. Cada item traz a pergunta que o projeto precisa conseguir responder."}));
   const grupo=(n,tit,desc,aberto=true)=>{ if(!g[n].length) return;
-    const itens=g[n].map(x=>el("div",{class:"gap n"+n},el("div",{},el("strong",{text:`${x.peca.simbolo} ${x.peca.nome.split(" · ")[1]}: `}),x.c.descricao),
+    const itens=g[n].map(x=>el("div",{class:"gap n"+n},el("div",{},el("strong",{text:`${x.peca.simbolo} ${x.peca.nome.split(": ")[1]}: `}),x.c.descricao),
       el("div",{class:"q",text:"Pergunta a responder: "+x.c.pergunta}),...(x.just?[el("div",{class:"q",text:"O que foi encontrado: "+x.just})]:[])));
     if(aberto) box.append(el("h3",{text:`${tit} (${g[n].length})`}),el("p",{class:"note",text:desc}),...itens);
     else box.append(el("details",{},el("summary",{text:`${tit} (${g[n].length})`}),el("p",{class:"note",text:desc}),...itens)); };
@@ -812,9 +818,9 @@ function secaoPendencias(d){
 }
 function dossieMd(d,txt,titulo){
   const P=Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p]));
-  let md=`# Dossiê Intersecta Lab${titulo?" · "+titulo:""}\n\nScientific Chess Method · rubrica v${d.versao}\n\n## Posição no tabuleiro: ${Math.round(d.geral)}/100\n\n${txt?.leitura_geral||""}\n\n`;
-  if(d.mate) md+=`## Risco de xeque-mate\n\n${P[d.mate.peca].nome}: ${txt?.frase_xeque_mate||""}\n\n`;
-  md+=`## Peças\n\n| Peça | Score | Severidade |\n|---|---|---|\n`+d.pecas.map(r=>`| ${P[r.peca].nome} | ${Math.round(r.score)} | ${r.severidade?nomeSev[r.severidade]:"–"} |`).join("\n")+"\n\n";
+  let md=`# Dossiê Intersecta Lab${titulo?": "+titulo:""}\n\nScientific Chess Method, rubrica v${d.versao}\n\n## Posição no tabuleiro: ${Math.round(d.geral)}/100\n\n${txt?.leitura_geral||""}\n\n`;
+  if(d.mate) md+=`## Risco de xeque-mate\n\n${curto(P[d.mate.peca])}. ${txt?.frase_xeque_mate||""}\n\n`;
+  md+=`## Peças\n\n| Peça | Score | Severidade |\n|---|---|---|\n`+d.pecas.map(r=>`| ${P[r.peca].nome} | ${Math.round(r.score)} | ${r.severidade?nomeSev[r.severidade]:"Sem alerta"} |`).join("\n")+"\n\n";
   const g=pendencias(d);
   md+=`## Pontos a resolver\n\n`;
   for(const [n,t] of [[0,"Não definidos"],[1,"Fracos (só suposição)"],[2,"Parciais"]]) if(g[n].length){
@@ -832,7 +838,7 @@ async function baixar(d,txt,titulo){
 /* ================= NIT ================= */
 const projetos=[]; let resultados=[];
 function renderLista(){
-  const ul=$("#plist"); ul.replaceChildren(...projetos.map((p,i)=>{const rm=el("button",{class:"btn ghost",text:"Remover"});rm.onclick=()=>{projetos.splice(i,1);renderLista()};return el("li",{},el("span",{text:`${p.titulo} · ${p.texto.length.toLocaleString("pt-BR")} caracteres`}),rm)}));
+  const ul=$("#plist"); ul.replaceChildren(...projetos.map((p,i)=>{const rm=el("button",{class:"btn ghost",text:"Remover"});rm.onclick=()=>{projetos.splice(i,1);renderLista()};return el("li",{},el("span",{text:`${p.titulo} (${p.texto.length.toLocaleString("pt-BR")} caracteres)`}),rm)}));
   $("#runPortfolio").disabled=!projetos.length;
 }
 $("#pAdd").onclick=()=>{const t=$("#pTitle").value.trim(),x=$("#pText").value.trim(); if(!t||!x){$("#nitNote").textContent="Preencha o nome e a descrição do projeto.";return} projetos.push({titulo:t,texto:x}); $("#pTitle").value="";$("#pText").value="";$("#nitNote").textContent="";renderLista()};
@@ -852,10 +858,10 @@ $("#runPortfolio").onclick=async()=>{
 };
 function renderPortfolio(){
   const P=RUBRICA.pecas; const ok=resultados.filter(r=>r.d).sort((a,b)=>b.d.geral-a.d.geral);
-  const head=el("tr",{},el("th",{text:"Projeto"}),el("th",{text:"Score"}),...P.map(p=>el("th",{title:p.nome,text:p.simbolo+" "+p.nome.split(" · ")[1]})),el("th",{text:"Xeque-mate"}));
+  const head=el("tr",{},el("th",{text:"Projeto"}),el("th",{text:"Score"}),...P.map(p=>el("th",{title:p.nome,text:p.simbolo+" "+p.nome.split(": ")[1]})),el("th",{text:"Xeque-mate"}));
   const rows=ok.map(r=>{const tr=el("tr",{class:"click",tabindex:"0"},el("td",{text:r.titulo}),el("td",{class:"cell"},el("strong",{text:String(Math.round(r.d.geral))})),
     ...r.d.pecas.map(x=>el("td",{class:"cell"},el("span",{class:"heat-"+(x.severidade||"OK"),text:String(Math.round(x.score))}))),
-    el("td",{text:r.d.mate?P.find(p=>p.id===r.d.mate.peca).nome:"–"}));
+    el("td",{text:r.d.mate?P.find(p=>p.id===r.d.mate.peca).nome:"Nenhum"}));
     const abrir=async()=>{ $("#diagNit").scrollIntoView({behavior:"smooth"}); await pipeline(r.texto,$("#diagNit"),{titulo:r.titulo}) };
     tr.onclick=abrir; tr.onkeydown=e=>{if(e.key==="Enter")abrir()}; return tr});
   const erros=resultados.filter(r=>r.erro).map(r=>el("p",{class:"err",text:`${r.titulo}: ${r.erro}`}));
