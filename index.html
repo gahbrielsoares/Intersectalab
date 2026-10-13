@@ -266,7 +266,7 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
       <button class="btn ghost lg" id="heroNit">Sou de um NIT</button>
     </div>
     <ul class="assure">
-      <li>Seis peças, 14 critérios</li>
+      <li>Seis peças, 27 critérios</li>
       <li>Nota calculada por regras</li>
       <li>Dossiê para baixar</li>
     </ul>
@@ -290,7 +290,7 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
       <div class="chips"><span class="chip">♗ Bispo</span><span class="chip crit">Crítico</span></div>
       <p>O comprador ainda é presumido: nenhuma prefeitura foi contatada.</p>
     </div>
-    <div class="badge"><b>Rubrica v0.1</b><br>14 critérios versionados</div>
+    <div class="badge"><b>Base científica</b><br>27 critérios com fonte</div>
     <span class="node" style="left:11.5%;top:52%"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1l1.6 4.4L13 7l-4.4 1.6L7 13l-1.6-4.4L1 7l4.4-1.6z" fill="#fff"/></svg></span>
   </div>
 </section>
@@ -382,61 +382,20 @@ dialog h3{font-size:1.25rem;letter-spacing:-.02em}
 </div>
 </div>
 
+<script src="scm-engine.js"></script>
 <script>
-/* ================= RUBRICA (espelho de packages/scm-engine) ================= */
-const anc = t => ({0:`Não há informação sobre ${t}, ou o pesquisador declara não saber.`,1:`${t} é afirmado sem dado, fonte ou teste.`,2:`Há dado sobre ${t}, mas indireto, de laboratório ou incompleto.`,3:`${t} é sustentado por dado externo e verificável, testado fora da bancada.`});
-const c = (id,descricao,pergunta,peso=1)=>({id,descricao,pergunta,peso,ancoras:anc(descricao.toLowerCase())});
-const RUBRICA = {
-  versao:"0.1.0",
-  pecas:[
-    {id:"rei",nome:"Rei: O Problema",simbolo:"♔",peso:3,criterios:[
-      c("rei.existe_independente","Existência do problema independente da solução","Esse problema existe independente da sua solução, ou você precisou criar a solução para enxergá-lo?",2),
-      c("rei.impacto_mensuravel","Impacto mensurável do problema","Quanto esse problema custa hoje, e para quem? Como você mediu isso?")]},
-    {id:"rainha",nome:"Rainha: Lógica do Negócio",simbolo:"♕",peso:2,criterios:[
-      c("rainha.ganho_vs_estado_da_arte","Ganho mensurável frente ao estado da arte","Qual é o ganho real e mensurável frente ao que já existe?",2),
-      c("rainha.fora_da_bancada","Comportamento da solução fora da bancada","O que muda quando a solução sai do laboratório?")]},
-    {id:"torre",nome:"Torre: Hipóteses",simbolo:"♖",peso:2,criterios:[
-      c("torre.premissa_critica","Identificação da premissa crítica","Qual premissa central, se falsa, encerra o projeto amanhã?",2),
-      c("torre.teste_sem_vies","Teste da premissa sem viés","Como você testa essa premissa sem enviesar o resultado? Já testou fora do laboratório?")]},
-    {id:"bispo",nome:"Bispo: Mercado",simbolo:"♗",peso:2,criterios:[
-      c("bispo.usuario_vs_pagador","Distinção entre usuário e pagador","Quem usa e quem paga são a mesma pessoa?"),
-      c("bispo.comprador_identificado","Comprador identificado, não presumido","O comprador já foi identificado e contatado, ou é presumido?",2),
-      c("bispo.custo_de_troca","Custo de troca para o comprador","O que esse comprador precisaria abandonar para adotar sua solução?")]},
-    {id:"cavalo",nome:"Cavalo: Riscos",simbolo:"♘",peso:2,criterios:[
-      c("cavalo.regulatorio","Risco regulatório mapeado","Qual barreira regulatória pode travar a comercialização?"),
-      c("cavalo.propriedade_intelectual","Situação de propriedade intelectual","Qual a situação de PI: patente, liberdade de operação, titularidade da ICT?"),
-      c("cavalo.cadeia_fornecimento","Risco de cadeia de fornecimento e produção","Algum insumo, fornecedor ou etapa de escala pode travar o projeto?")]},
-    {id:"peao",nome:"Peão: Equipe",simbolo:"♙",peso:1,criterios:[
-      c("peao.intencao_comercializar","Intenção do cientista principal de comercializar","O cientista principal quer comercializar, ou quer continuar pesquisando?"),
-      c("peao.competencia_comercial","Competência comercial na equipe","A equipe tem quem fecha negócio, ou é a mesma pessoa tentando fazer tudo?",2)]}
-  ],
-  travas:[{peca:"rei",minimo:40,teto:45}],
-  limiares:{critico:35,alto:55,medio:75}
-};
+/* ================= MÉTODO =================
+   As peças, critérios, pesos e regras NÃO ficam aqui. Eles vêm de scm-engine.js, gerado a
+   partir de packages/scm-engine (uma peça por arquivo em src/pecas). Para mudar o método,
+   edite a peça lá e rode "npm run build:site" no pacote. */
+const RUBRICA = {versao:SCM.versao, pecas:SCM.pecas};
 const CRIT_IDS = RUBRICA.pecas.flatMap(p=>p.criterios.map(c=>c.id));
-
-/* ================= MOTOR DE PONTUAÇÃO (determinístico) ================= */
-const arred = n => Math.round(n*10)/10;
-function severidade(s){const l=RUBRICA.limiares; return s<l.critico?"CRITICO":s<l.alto?"ALTO":s<l.medio?"MEDIO":null}
-function calcular(evidencias){
-  const ev = new Map(evidencias.filter(e=>CRIT_IDS.includes(e.criterio_id)).map(e=>[e.criterio_id,e]));
-  const pecas = RUBRICA.pecas.map(p=>{
-    let soma=0,pt=0; const niv=[];
-    for(const cr of p.criterios){const n=Math.max(0,Math.min(3,Number(ev.get(cr.id)?.nivel)||0)); soma+=(n/3)*cr.peso; pt+=cr.peso; niv.push({id:cr.id,n});}
-    const score=arred(soma/pt*100), min=Math.min(...niv.map(x=>x.n));
-    return {peca:p.id,score,severidade:severidade(score),fracos:niv.filter(x=>x.n===min&&min<3).map(x=>x.id)};
-  });
-  const pesoTot = RUBRICA.pecas.reduce((s,p)=>s+p.peso,0);
-  const semTravas = arred(pecas.reduce((s,r,i)=>s+r.score*RUBRICA.pecas[i].peso,0)/pesoTot);
-  let geral=semTravas; const travas=[];
-  for(const t of RUBRICA.travas){const r=pecas.find(p=>p.peca===t.peca); if(r&&r.score<t.minimo&&geral>t.teto){geral=t.teto;travas.push(t.peca)}}
-  const peso = Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p.peso]));
-  const xeque = pecas.filter(p=>p.severidade).sort((a,b)=>(100-b.score)*peso[b.peca]-(100-a.score)*peso[a.peca]).slice(0,3);
-  return {versao:RUBRICA.versao,geral,semTravas,travas,pecas,xeque,mate:xeque[0]||null,evid:Object.fromEntries(ev)};
-}
+function calcular(evidencias){ return SCM.calcular(evidencias); }
+const nomesFontes = ids => ids.map(f=>SCM.fontes[f]?.nome).filter(Boolean).join("; ");
 
 /* ================= PROMPTS ================= */
 const rubricaTexto = () => RUBRICA.pecas.map(p=>`${p.simbolo} ${p.nome}\n`+p.criterios.map(c=>`  - ${c.id}: ${c.descricao}. Pergunta-guia: ${c.pergunta}`).join("\n")).join("\n");
+const rubricaComAncoras = () => RUBRICA.pecas.map(p=>`${p.simbolo} ${p.nome}: ${p.descricao}\n`+p.criterios.map(c=>`  - ${c.id}: ${c.descricao}. Pergunta: ${c.pergunta}\n      nível 0: ${c.ancoras[0]}\n      nível 1: ${c.ancoras[1]}\n      nível 2: ${c.ancoras[2]}\n      nível 3: ${c.ancoras[3]}`).join("\n")).join("\n");
 const ancorasTexto = "Níveis de evidência: 0 = ausente ou 'não sei'; 1 = presumido, afirmado sem dado; 2 = parcial, dado indireto, de laboratório ou incompleto; 3 = evidenciado por dado externo e verificável, testado fora da bancada.";
 
 const ENTREVISTA = `Você é a entrevistadora da Intersecta Lab e conduz um diagnóstico pelo Scientific Chess Method. Fale em português do Brasil, com calor humano e rigor.
@@ -451,10 +410,10 @@ Critérios do método:
 ${rubricaTexto()}`;
 
 function promptExtracao(material){
-  return `Você é avaliadora do Scientific Chess Method. Leia o material de um projeto de ciência aplicada e classifique a evidência disponível para CADA critério. Seja rigorosa: sem dado concreto, o nível é no máximo 1. Não presuma o que não está escrito.
+  return `Você é avaliadora do Scientific Chess Method. Leia o material de um projeto de ciência aplicada e classifique a evidência disponível para CADA critério. Seja rigorosa: sem dado concreto, o nível é no máximo 1. Não presuma o que não está escrito. Use as descrições de nível de cada critério como régua; na dúvida entre dois níveis, escolha o menor.
 ${ancorasTexto}
-Critérios:
-${rubricaTexto()}
+Critérios, com a descrição de cada nível:
+${rubricaComAncoras()}
 
 MATERIAL DO PROJETO:
 """
@@ -763,7 +722,7 @@ function renderDiag(box,d,txt,titulo){
   root.append(el("div",{class:"score-line"},
     el("div",{class:"score",text:String(Math.round(d.geral))}),
     el("div",{class:"score-meta"},
-      el("div",{text:"Posição no tabuleiro, de 0 a 100. "+(d.travas.length?`Limitada porque o Rei está fraco (sem limite seria ${Math.round(d.semTravas)}).`:"")}),
+      el("div",{text:"Posição no tabuleiro, de 0 a 100. "+(d.motivos.length?`${d.motivos.join(" ")} Sem essa regra, seria ${Math.round(d.semTravas)}.`:"")}),
       el("div",{text:txt?.leitura_geral||""}))));
   const board=el("div",{class:"board"});
   for(const r of d.pecas){const p=P[r.peca];
@@ -787,7 +746,9 @@ function renderDiag(box,d,txt,titulo){
     for(const cr of p.criterios){const e=d.evid[cr.id]; ul.append(el("li",{text:`${cr.descricao}: nível ${e?.nivel??0} de 3. ${e?.justificativa||"Sem evidência no material."}`+(e?.trechos_fonte?.[0]?` Trecho: “${String(e.trechos_fonte[0]).slice(0,160)}”`:"")}))}
     root.append(el("div",{class:"piece-detail"},
       el("div",{class:"glyph","aria-hidden":"true",text:p.simbolo}),
-      el("div",{},el("h3",{text:`${p.nome}, score ${Math.round(r.score)}`},...(r.severidade?[" ",el("span",{class:"tag "+r.severidade,text:nomeSev[r.severidade]})]:[])),dl,
+      el("div",{},el("h3",{text:`${p.nome}, score ${Math.round(r.score)}`},...(r.severidade?[" ",el("span",{class:"tag "+r.severidade,text:nomeSev[r.severidade]})]:[])),
+        ...(r.regras?.length?[el("p",{class:"note",text:r.regras.join(" ")})]:[]),dl,
+        el("p",{class:"note",text:"Base: "+nomesFontes(p.fontes)+"."}),
         el("details",{class:"evid"},el("summary",{text:"Evidências por critério"}),ul))));
   }
   if(!txt) root.append(el("p",{class:"note",text:"O texto explicativo não foi gerado desta vez; o score e as evidências acima estão completos."}));
@@ -826,8 +787,9 @@ function dossieMd(d,txt,titulo){
   for(const [n,t] of [[0,"Não definidos"],[1,"Fracos (só suposição)"],[2,"Parciais"]]) if(g[n].length){
     md+=`### ${t}\n\n`+g[n].map(x=>`- **${x.peca.nome}: ${x.c.descricao}.** Pergunta a responder: ${x.c.pergunta}${x.just?` _Encontrado: ${x.just}_`:""}`).join("\n")+"\n\n"}
   md+=`## Análise peça a peça\n\n`;
+  const fundamentacao=`## Fundamentação do método\n\n`+Object.values(SCM.fontes).map(f=>`- ${f.referencia} ${f.url}`).join("\n")+"\n";
   for(const r of d.pecas){const t=txt?.pecas?.[r.peca]||{};md+=`### ${P[r.peca].nome}\n\n`;for(const[k,l]of[["solido","Sólido"],["fraco","Fraco"],["acao","Próximo movimento"],["criterio_sucesso","Critério de sucesso"],["custo_de_errar","Custo de errar"]])if(t[k])md+=`- **${l}:** ${t[k]}\n`;md+="\n"}
-  return md;
+  return md+"\n"+fundamentacao;
 }
 async function baixar(d,txt,titulo){
   const md=dossieMd(d,txt,titulo);
