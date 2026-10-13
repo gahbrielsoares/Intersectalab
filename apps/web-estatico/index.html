@@ -142,7 +142,7 @@ dialog .field input{width:100%}
         <option value="anthropic">Anthropic Claude</option>
       </select></div>
     <div class="field"><label for="keyIn">Chave da API</label><input id="keyIn" type="password" autocomplete="off" placeholder="AIza... ou sk-ant-..." required></div>
-    <div class="field"><label for="modelIn">Modelo</label><input id="modelIn"></div>
+    <div class="field"><label for="modelIn">Modelo</label><input id="modelIn" list="modelosList"><datalist id="modelosList"></datalist><span class="note" id="modelHint">No Gemini, o modelo é escolhido automaticamente ao conectar.</span></div>
     <label class="note"><input type="checkbox" id="keyRemember"> Lembrar até fechar esta aba</label>
     <p class="err" id="keyErr"></p>
     <div class="row" style="margin-top:12px">
@@ -298,7 +298,7 @@ Responda somente com JSON neste formato:
 
 /* ================= INFRA ================= */
 /* ===== Conexão direta com a API da Anthropic (chave informada pelo usuário) ===== */
-const MODELO_PADRAO={gemini:"gemini-2.5-flash",anthropic:"claude-sonnet-5-5"};
+const MODELO_PADRAO={gemini:"gemini-flash-latest",anthropic:"claude-sonnet-5-5"};
 const IA={provider:"gemini",key:null,model:MODELO_PADRAO.gemini};
 try{IA.provider=sessionStorage.getItem("ix_prov")||IA.provider;IA.key=sessionStorage.getItem("ix_key");IA.model=sessionStorage.getItem("ix_model")||MODELO_PADRAO[IA.provider]}catch{}
 function juntarTurnos(t){const out=[];for(const m of t){const l=out[out.length-1];if(l&&l.role===m.role)l.content+="\n\n"+m.content;else out.push({role:m.role,content:m.content})}return out}
@@ -343,20 +343,48 @@ function lerJson(t){const s=t.replace(/```json|```/g,"").trim();try{return JSON.
 async function sample(input,opts={}){const msgs=typeof input==="string"?[{role:"user",content:input}]:juntarTurnos(input);return {text:await chamarIA(msgs,opts)}}
 sample.json=async(input,opts={})=>lerJson((await sample(input,{maxTokens:8192,json:true})).text);
 
+async function modelosGemini(key){
+  let r; try{ r=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}}) }catch{ throw {code:"network"} }
+  if(!r.ok){let m="";try{m=(await r.json()).error?.message||""}catch{} throw {code:(r.status===400||r.status===401||r.status===403)?"bad_key":"upstream_error",message:m}}
+  const j=await r.json();
+  return (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent")).map(m=>m.name.replace(/^models\//,""));
+}
+function escolherFlash(lista,atual){
+  if(atual&&lista.includes(atual)) return atual;
+  if(lista.includes("gemini-flash-latest")) return "gemini-flash-latest";
+  const ver=n=>(n.match(/gemini-([\d.]+)/)?.[1]||"0").split(".").map(Number);
+  const cmp=(a,b)=>{const x=ver(a),y=ver(b);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (y[i]||0)-(x[i]||0)}return 0};
+  const limpos=lista.filter(n=>/flash/.test(n)&&!/image|tts|audio|live|lite|embedding|thinking|exp/.test(n));
+  const estaveis=limpos.filter(n=>!/preview/.test(n)).sort(cmp), previews=limpos.filter(n=>/preview/.test(n)).sort(cmp);
+  return estaveis[0]||previews[0]||lista[0];
+}
 const dlg=()=>document.getElementById("keyDlg");
 function abrirChave(msg=""){ $("#provIn").value=IA.provider; $("#keyIn").value=IA.key||""; $("#modelIn").value=IA.model; $("#keyErr").textContent=msg; dlg().showModal(); }
 function atualizarKeyBtn(){ $("#keyBtn").textContent=IA.key?"IA conectada":"Conectar IA"; }
 const $=s=>document.querySelector(s);
 const el=(t,a={},...k)=>{const e=document.createElement(t);for(const[x,y]of Object.entries(a)){if(x==="class")e.className=y;else if(x==="text")e.textContent=y;else e.setAttribute(x,y)}k.forEach(z=>e.append(z));return e};
-const erroTexto = e => ({rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
+const erroTexto = e => erroBase(e)+(e?.message?` Detalhe: ${String(e.message).slice(0,200)}`:"");
+const erroBase = e => ({rate_limited:"Limite do plano gratuito atingido. Aguarde um minuto e tente de novo.",no_key:"Conecte a IA informando sua chave da API.",bad_key:"Chave da API inválida. Confira e conecte de novo.",bad_model:"Modelo não encontrado. Ajuste o nome do modelo em Conectar IA.",no_credit:"A conta da API está sem créditos.",network:"Sem conexão com a API. Verifique a internet.",rate_limited:"Muitas chamadas seguidas. Aguarde um pouco e tente de novo.",invalid_json:"A resposta da IA veio fora do formato. Tente gerar novamente.",session_expired:"Sua sessão expirou. Entre novamente no Claude.",prompt_too_large:"O material é grande demais. Envie um trecho menor."}[e?.code]||"Falha ao falar com a IA. Tente novamente.");
 
 $("#keyBtn").onclick=()=>abrirChave();
 $("#keyClose").onclick=()=>dlg().close();
 $("#keyForget").onclick=()=>{IA.key=null;try{sessionStorage.removeItem("ix_key")}catch{};$("#keyIn").value="";atualizarKeyBtn();dlg().close()};
 $("#provIn").onchange=()=>{ $("#modelIn").value=MODELO_PADRAO[$("#provIn").value]; };
-$("#keyForm").onsubmit=()=>{IA.provider=$("#provIn").value;IA.key=$("#keyIn").value.trim();IA.model=$("#modelIn").value.trim()||MODELO_PADRAO[IA.provider];
+$("#keyForm").onsubmit=async(ev)=>{ev.preventDefault();
+  const prov=$("#provIn").value,key=$("#keyIn").value.trim(); let model=$("#modelIn").value.trim();
+  if(!key){$("#keyErr").textContent="Cole a chave da API.";return}
+  if(prov==="gemini"){
+    $("#keySave").disabled=true;$("#keyErr").textContent="";$("#modelHint").textContent="Verificando a chave e os modelos disponíveis…";
+    try{ const lista=await modelosGemini(key);
+      if(!lista.length) throw {code:"upstream_error",message:"Nenhum modelo de texto disponível para esta chave."};
+      $("#modelosList").replaceChildren(...lista.map(n=>Object.assign(document.createElement("option"),{value:n})));
+      model=escolherFlash(lista,model); $("#modelIn").value=model; $("#modelHint").textContent=`Usando ${model}.`;
+    }catch(e){ $("#keyErr").textContent=erroTexto(e); $("#modelHint").textContent=""; $("#keySave").disabled=false; return }
+    $("#keySave").disabled=false;
+  }
+  IA.provider=prov;IA.key=key;IA.model=model||MODELO_PADRAO[prov];
   try{ if($("#keyRemember").checked){sessionStorage.setItem("ix_key",IA.key);sessionStorage.setItem("ix_model",IA.model);sessionStorage.setItem("ix_prov",IA.provider)} else sessionStorage.removeItem("ix_key") }catch{}
-  atualizarKeyBtn()};
+  atualizarKeyBtn(); dlg().close(); addMsg("sys",`IA conectada: ${IA.model}.`)};
 atualizarKeyBtn();
 
 async function lerArquivo(f){
