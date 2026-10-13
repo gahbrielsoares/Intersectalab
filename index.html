@@ -311,7 +311,8 @@ const esperar=ms=>new Promise(r=>setTimeout(r,ms));
 function relogio(ms){const ctrl=new AbortController();let t=setTimeout(()=>ctrl.abort(),ms);
   return {signal:ctrl.signal,renovar(){clearTimeout(t);t=setTimeout(()=>ctrl.abort(),ms)},parar(){clearTimeout(t)}}}
 const TEMPO_ESGOTADO={code:"overloaded",message:"A IA demorou demais para responder."};
-function avisar(t){ if(statusBox){ statusTexto=t; desenharStatus(); return } try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
+let chatEspera=null;
+function avisar(t){ if(chatEspera){ chatEspera.aviso=t; chatEspera.desenhar(); return } if(statusBox){ statusTexto=t; desenharStatus(); return } try{ if(!$("#view-pesq").classList.contains("hidden")) addMsg("sys",t); else $("#nitNote").textContent=t; }catch{} }
 async function chamarIA(messages,opts={}){
   if(!IA.key){abrirChave();throw {code:"no_key"}}
   const chamar=()=>IA.provider==="gemini"?chamarGemini(messages,opts):chamarAnthropic(messages,opts);
@@ -375,6 +376,16 @@ async function modelosGemini(key){
   const j=await r.json();
   return (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent")).map(m=>m.name.replace(/^models\//,""));
 }
+async function testarModelo(key,modelo){
+  const rel=relogio(25000);
+  try{ const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`,{method:"POST",signal:rel.signal,
+      headers:{"content-type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents:[{role:"user",parts:[{text:"Responda apenas: ok"}]}],generationConfig:{maxOutputTokens:256}})});
+    if(!r.ok) throw new Error(String(r.status)); return modelo;
+  } finally { rel.parar() }
+}
+async function modeloMaisRapido(key,candidatos){
+  try{ return await Promise.any(candidatos.map(m=>testarModelo(key,m))) }catch{ return null }
+}
 function ordenarCandidatos(lista){
   const ver=n=>(n.match(/gemini-([\d.]+)/)?.[1]||"0").split(".").map(Number);
   const cmp=(a,b)=>{const x=ver(a),y=ver(b);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (y[i]||0)-(x[i]||0)}return 0};
@@ -413,8 +424,13 @@ $("#keyForm").onsubmit=async(ev)=>{ev.preventDefault();
     try{ const lista=await modelosGemini(key);
       if(!lista.length) throw {code:"upstream_error",message:"Nenhum modelo de texto disponível para esta chave."};
       $("#modelosList").replaceChildren(...lista.map(n=>Object.assign(document.createElement("option"),{value:n})));
-      model=escolherFlash(lista,model); $("#modelIn").value=model; $("#modelHint").textContent=`Usando ${model}.`;
-      IA.alternativos=ordenarCandidatos(lista).filter(n=>n!==model).slice(0,4);
+      const candidatos=ordenarCandidatos(lista).slice(0,5);
+      const manual=model&&lista.includes(model)&&model!==MODELO_PADRAO.gemini&&!candidatos.includes(model)?model:null;
+      $("#modelHint").textContent=`Testando ${candidatos.length} modelos para achar o mais disponível agora…`;
+      const vencedor=manual||await modeloMaisRapido(key,candidatos);
+      model=vencedor||escolherFlash(lista,model);
+      $("#modelIn").value=model; $("#modelHint").textContent=vencedor?`Usando ${model}, que respondeu primeiro.`:`Nenhum modelo respondeu no teste; vou tentar ${model} e alternar se precisar.`;
+      IA.alternativos=candidatos.filter(n=>n!==model);
     }catch(e){ $("#keyErr").textContent=erroTexto(e); $("#modelHint").textContent=""; $("#keySave").disabled=false; return }
     $("#keySave").disabled=false;
   }
@@ -455,12 +471,17 @@ async function enviar(texto){
   const minha=addMsg("user",texto.length>600?texto.slice(0,600)+"… [texto completo enviado]":texto);
   turns.push({role:"user",content:texto});
   const bolha=addMsg("ai","Pensando…");
+  const ini=Date.now(); let primeiro=false;
+  chatEspera={aviso:"",desenhar(){ if(primeiro) return; const s=Math.floor((Date.now()-ini)/1000);
+    bolha.replaceChildren(el("span",{class:"spin",style:"display:inline-block;vertical-align:-3px;margin-right:8px"}),`Pensando… ${s}s`+(this.aviso?`\n${this.aviso}`:"")); }};
+  chatEspera.desenhar(); const tick=setInterval(()=>chatEspera&&chatEspera.desenhar(),1000);
   try{
     const ctx=[{role:"user",content:ENTREVISTA+"\n\nA conversa começa agora. Sua primeira fala foi: "+SAUDACAO},...turns.slice(-24)];
-    const {text}=await sample(ctx,{cache:false,onText:({text})=>{bolha.textContent=text;$("#msgs").scrollTop=1e9}});
+    const {text}=await sample(ctx,{cache:false,onText:({text})=>{primeiro=true;bolha.textContent=text;$("#msgs").scrollTop=1e9}});
     turns.push({role:"assistant",content:text});
   }catch(e){ bolha.remove(); minha.remove(); addMsg("sys",erroTexto(e)+" Sua mensagem voltou para a caixa de texto; é só enviar de novo."); turns.pop();
     if(!texto.startsWith("[Anexo:")) $("#input").value=texto; if(e?.code==="bad_key"||e?.code==="bad_model") abrirChave(erroTexto(e)); }
+  clearInterval(tick); chatEspera=null;
   ocupado=false; $("#send").disabled=false; atualizarBotao();
 }
 $("#send").onclick=()=>{const v=$("#input").value;$("#input").value="";enviar(v)};
