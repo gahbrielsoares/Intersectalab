@@ -114,6 +114,16 @@ tr.click{cursor:pointer} tr.click:hover{background:var(--board-a)}
 .heat-MEDIO{background:color-mix(in srgb,var(--medio) 22%,transparent)}
 .heat-OK{background:color-mix(in srgb,var(--ok) 18%,transparent)}
 .hidden{display:none!important}
+.modos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.modo{display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:14px 16px;cursor:pointer}
+.modo span{color:var(--muted);font-size:.9rem}
+.modo[aria-selected="true"]{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+@media (max-width:640px){.modos{grid-template-columns:1fr}}
+.gaps{margin:8px 0 4px}
+.gaps h3{margin:18px 0 6px}
+.gap{border-left:3px solid var(--line);padding:8px 12px;margin:8px 0;background:var(--surface);border-radius:0 8px 8px 0}
+.gap.n0{border-left-color:var(--critico)} .gap.n1{border-left-color:var(--alto)} .gap.n2{border-left-color:var(--medio)}
+.gap .q{color:var(--muted);font-size:.9rem;margin-top:2px}
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);max-width:min(480px,92vw);padding:20px}
 dialog::backdrop{background:rgba(10,16,22,.55)}
 dialog .field input{width:100%}
@@ -161,7 +171,24 @@ dialog .field input{width:100%}
 <!-- PESQUISADOR -->
 <section id="view-pesq">
   <h1>Descubra a posição do seu projeto no tabuleiro</h1>
-  <p class="lead">Conte sobre o projeto com suas palavras ou anexe o PDF. A conversa percorre as seis peças do método. Quando quiser, gere o diagnóstico.</p>
+  <p class="lead">Escolha como prefere começar. Com o documento do projeto em mãos, o diagnóstico sai direto. Sem ele, uma conversa guiada levanta as informações.</p>
+  <div class="modos" role="tablist" aria-label="Como começar">
+    <button class="modo" role="tab" aria-selected="true" data-modo="doc"><strong>📄 Tenho o documento</strong><span>Envie o PDF ou cole o texto e receba o diagnóstico direto, sem perguntas.</span></button>
+    <button class="modo" role="tab" aria-selected="false" data-modo="chat"><strong>💬 Prefiro conversar</strong><span>Responda perguntas guiadas pelas seis peças e gere o diagnóstico no fim.</span></button>
+  </div>
+  <div id="modoDoc">
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn ghost" id="docPdf">Anexar PDF ou TXT</button>
+      <input type="file" id="docFile" accept=".pdf,.txt,.md" hidden>
+      <span class="note" id="docNote"></span>
+    </div>
+    <div class="field"><label for="docText">Texto do projeto</label><textarea id="docText" style="min-height:220px" placeholder="Cole aqui o projeto, ou anexe o arquivo acima."></textarea></div>
+    <div class="row">
+      <button class="btn" id="docGen">Gerar diagnóstico</button>
+      <button class="btn ghost" id="docExample">Usar projeto de exemplo</button>
+    </div>
+  </div>
+  <div id="modoChat" class="hidden">
   <div class="chat">
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="composer">
@@ -175,6 +202,7 @@ dialog .field input{width:100%}
     <button class="btn" id="genDiag" disabled>Gerar diagnóstico</button>
     <button class="btn ghost" id="loadExample">Usar projeto de exemplo</button>
     <span class="note" id="chatNote"></span>
+  </div>
   </div>
   <div id="diagPesq"></div>
 </section>
@@ -295,6 +323,7 @@ Material do projeto (para contexto):
 ${material.slice(0,40000)}
 """
 
+Seja específica sobre o que está faltando, fraco ou indefinido em cada peça; não suavize lacunas.
 Responda somente com JSON neste formato:
 {"leitura_geral":"2 frases sobre a posição do projeto",
  "frase_xeque_mate":"uma frase: a vulnerabilidade com maior chance de derrubar tudo",
@@ -457,12 +486,33 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
   $("#view-nit").classList.toggle("hidden",b.dataset.view!=="nit");
 });
 
+/* ================= MODO DOCUMENTO (diagnóstico direto) ================= */
+document.querySelectorAll(".modo").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modo").forEach(x=>x.setAttribute("aria-selected",x===b));
+  $("#modoDoc").classList.toggle("hidden",b.dataset.modo!=="doc");
+  $("#modoChat").classList.toggle("hidden",b.dataset.modo!=="chat");
+});
+$("#docPdf").onclick=()=>$("#docFile").click();
+$("#docFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  $("#docNote").textContent=`Lendo ${f.name}…`;
+  try{const t=await lerArquivo(f);if(!t)throw 0;$("#docText").value=t;$("#docNote").textContent=`${f.name} carregado (${t.length.toLocaleString("pt-BR")} caracteres).`}
+  catch{$("#docNote").textContent="Não consegui ler o texto desse arquivo. Copie e cole o conteúdo no campo abaixo."}};
+$("#docExample").onclick=()=>{$("#docText").value=EX[0].texto;$("#docNote").textContent="Projeto de exemplo (fictício) carregado."};
+$("#docGen").onclick=async()=>{
+  const t=$("#docText").value.trim();
+  if(t.length<200){$("#docNote").textContent="O texto está curto demais para um diagnóstico. Envie o projeto completo ou use o modo conversa.";return}
+  $("#docGen").disabled=true;
+  try{ setTimeout(()=>$("#diagPesq").scrollIntoView({behavior:"smooth",block:"start"}),50);
+    await pipeline("DOCUMENTO DO PROJETO ENVIADO PELO PESQUISADOR:\n\n"+t,$("#diagPesq")); }
+  finally{ $("#docGen").disabled=false }
+};
+
 /* ================= CHAT (pesquisador) ================= */
 const SAUDACAO="Oi, que bom ter você aqui! Vamos construir juntos o diagnóstico do seu projeto pelo Scientific Chess Method. Conte sobre ele com suas palavras, no seu ritmo, ou anexe o PDF do projeto. Se em algum momento não souber uma resposta, tudo bem: não saber também é uma resposta.";
 const turns=[]; let anexo=""; let ocupado=false;
 function addMsg(role,text){const m=el("div",{class:"msg "+role,text});$("#msgs").append(m);$("#msgs").scrollTop=1e9;return m}
 addMsg("ai",SAUDACAO);
-function atualizarBotao(){ const n=turns.filter(t=>t.role==="user").length; $("#genDiag").disabled = ocupado || !(n>=2 || anexo); }
+function atualizarBotao(){ const n=turns.filter(t=>t.role==="user").length; $("#genDiag").disabled = ocupado || !(n>=1 || anexo); }
 
 async function enviar(texto){
   if(!texto.trim()||ocupado) return;
@@ -555,6 +605,7 @@ function renderDiag(box,d,txt,titulo){
   root.append(board);
   if(d.mate) root.append(el("div",{class:"mate-box"},el("h3",{text:`Risco de xeque-mate: ${P[d.mate.peca].nome}`}),el("div",{text:txt?.frase_xeque_mate||"Esta é a peça com maior lacuna ponderada pelo método."})));
   if(d.xeque.length) root.append(el("p",{class:"note",text:"Peças em xeque, por urgência: "+d.xeque.map(x=>`${P[x.peca].nome} (${nomeSev[x.severidade]})`).join(", ")+"."}));
+  root.append(secaoPendencias(d));
   root.append(el("h2",{text:"Análise peça a peça"}));
   const ordem=[...d.xeque.map(x=>x.peca),...d.pecas.map(x=>x.peca).filter(id=>!d.xeque.some(x=>x.peca===id))];
   for(const id of ordem){const p=P[id],r=d.pecas.find(x=>x.peca===id),t=txt?.pecas?.[id]||{};
@@ -573,11 +624,36 @@ function renderDiag(box,d,txt,titulo){
   box.replaceChildren(root);
 }
 
+function pendencias(d){
+  const out={0:[],1:[],2:[]};
+  for(const p of RUBRICA.pecas) for(const c of p.criterios){const e=d.evid[c.id];const n=Number(e?.nivel??0);
+    if(n<3) out[n].push({peca:p,c,just:e?.justificativa||""})}
+  return out;
+}
+function secaoPendencias(d){
+  const g=pendencias(d), box=el("div",{class:"gaps"},el("h2",{text:"Pontos a resolver"}),
+    el("p",{class:"note",text:"Lista gerada pelas regras do método a partir das evidências encontradas. Cada item traz a pergunta que o projeto precisa conseguir responder."}));
+  const grupo=(n,tit,desc,aberto=true)=>{ if(!g[n].length) return;
+    const itens=g[n].map(x=>el("div",{class:"gap n"+n},el("div",{},el("strong",{text:`${x.peca.simbolo} ${x.peca.nome.split(" · ")[1]}: `}),x.c.descricao),
+      el("div",{class:"q",text:"Pergunta a responder: "+x.c.pergunta}),...(x.just?[el("div",{class:"q",text:"O que foi encontrado: "+x.just})]:[])));
+    if(aberto) box.append(el("h3",{text:`${tit} (${g[n].length})`}),el("p",{class:"note",text:desc}),...itens);
+    else box.append(el("details",{},el("summary",{text:`${tit} (${g[n].length})`}),el("p",{class:"note",text:desc}),...itens)); };
+  grupo(0,"Não definidos","O documento não traz informação sobre estes pontos.");
+  grupo(1,"Fracos","Aparecem só como suposição, sem dado, fonte ou teste.");
+  grupo(2,"Parciais","Há algum dado, mas indireto, de laboratório ou incompleto.",false);
+  if(!g[0].length&&!g[1].length&&!g[2].length) box.append(el("p",{text:"Nenhuma lacuna encontrada: todos os critérios têm evidência externa e verificável."}));
+  return box;
+}
 function dossieMd(d,txt,titulo){
   const P=Object.fromEntries(RUBRICA.pecas.map(p=>[p.id,p]));
   let md=`# Dossiê Intersecta Lab${titulo?" · "+titulo:""}\n\nScientific Chess Method · rubrica v${d.versao}\n\n## Posição no tabuleiro: ${Math.round(d.geral)}/100\n\n${txt?.leitura_geral||""}\n\n`;
   if(d.mate) md+=`## Risco de xeque-mate\n\n${P[d.mate.peca].nome}: ${txt?.frase_xeque_mate||""}\n\n`;
   md+=`## Peças\n\n| Peça | Score | Severidade |\n|---|---|---|\n`+d.pecas.map(r=>`| ${P[r.peca].nome} | ${Math.round(r.score)} | ${r.severidade?nomeSev[r.severidade]:"–"} |`).join("\n")+"\n\n";
+  const g=pendencias(d);
+  md+=`## Pontos a resolver\n\n`;
+  for(const [n,t] of [[0,"Não definidos"],[1,"Fracos (só suposição)"],[2,"Parciais"]]) if(g[n].length){
+    md+=`### ${t}\n\n`+g[n].map(x=>`- **${x.peca.nome}: ${x.c.descricao}.** Pergunta a responder: ${x.c.pergunta}${x.just?` _Encontrado: ${x.just}_`:""}`).join("\n")+"\n\n"}
+  md+=`## Análise peça a peça\n\n`;
   for(const r of d.pecas){const t=txt?.pecas?.[r.peca]||{};md+=`### ${P[r.peca].nome}\n\n`;for(const[k,l]of[["solido","Sólido"],["fraco","Fraco"],["acao","Próximo movimento"],["criterio_sucesso","Critério de sucesso"],["custo_de_errar","Custo de errar"]])if(t[k])md+=`- **${l}:** ${t[k]}\n`;md+="\n"}
   return md;
 }
